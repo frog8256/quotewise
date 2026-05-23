@@ -3,16 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>QuoteWise Preview</title>
+    <title>QuoteWise Home Preview</title>
     <style>
       :root {
-        --background: #ffffff;
-        --foreground: #1e293b;
-        --primary: #2563eb;
-        --muted-foreground: #64748b;
-        --accent: #dbeafe;
-        --border: #e2e8f0;
-        --destructive: #dc2626;
+        --ink: #10243f;
+        --navy: #1e3a5f;
+        --blue: #2563eb;
+        --muted: #64748b;
+        --line: #dbe5f1;
+        --soft: #f8fbff;
       }
 
       * {
@@ -22,55 +21,368 @@
       body {
         margin: 0;
         min-height: 100vh;
-        color: var(--foreground);
-        background: var(--background);
-        font-family:
-          system-ui,
-          -apple-system,
-          BlinkMacSystemFont,
-          "Segoe UI",
-          sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 78% 20%, rgba(37, 99, 235, 0.08), transparent 30%),
+          linear-gradient(180deg, #fbfdff 0%, #f8fbff 100%);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      button {
+        font: inherit;
       }
 
       header {
-        border-bottom: 1px solid var(--border);
-        background: #ffffff;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.88);
+        backdrop-filter: blur(16px);
       }
 
       .container {
-        width: min(100% - 48px, 1280px);
+        width: min(100% - 40px, 1280px);
         margin: 0 auto;
       }
 
-      .header-inner {
-        padding: 20px 0;
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 0;
       }
 
       .logo {
-        height: 40px;
-        width: auto;
+        position: absolute;
+        left: 0;
+        top: 50%;
+        width: 100%;
+        max-width: none;
+        transform: translateY(-50%);
+        user-select: none;
       }
 
-      main {
-        padding: 64px 0;
+      .logo-link {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        width: 260px;
+        height: 48px;
+        overflow: hidden;
+        border: 0;
+        background: transparent;
+        padding: 0;
+        cursor: pointer;
+      }
+
+      nav {
+        display: flex;
+        gap: 40px;
+        color: var(--muted);
+        font-size: 15px;
+        font-weight: 600;
+      }
+
+      nav a,
+      .utility span {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      nav a:first-child {
+        color: var(--navy);
+      }
+
+      .utility {
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        color: #475569;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .utility span {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .language-picker {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .language-picker select {
+        border: 1px solid transparent;
+        border-radius: 8px;
+        background: transparent;
+        color: #475569;
+        padding: 6px 4px;
+        font: inherit;
+        font-weight: 700;
+        outline: none;
+      }
+
+      .language-picker select:hover,
+      .language-picker select:focus {
+        border-color: #c8d7eb;
+        background: #fff;
       }
 
       .hero {
-        max-width: 768px;
-        margin: 0 auto 64px;
-        text-align: center;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(420px, 0.9fr);
+        align-items: center;
+        gap: 72px;
+        padding: 86px 0 92px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        margin-bottom: 32px;
+        border: 1px solid #bfd1e8;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.8);
+        padding: 9px 16px;
+        color: var(--blue);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
       }
 
       h1 {
-        margin: 0 0 16px;
-        font-size: clamp(32px, 5vw, 44px);
-        line-height: 1.25;
+        margin: 0;
+        max-width: 720px;
+        color: var(--ink);
+        font-size: clamp(48px, 7vw, 82px);
+        font-weight: 650;
+        line-height: 1.05;
+      }
+
+      .lead {
+        max-width: 690px;
+        margin: 30px 0 0;
+        color: var(--muted);
+        font-size: 20px;
+        line-height: 1.75;
+      }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        margin-top: 42px;
+      }
+
+      .primary {
+        display: inline-flex;
+        min-height: 52px;
+        align-items: center;
+        gap: 10px;
+        border: 0;
+        border-radius: 10px;
+        background: var(--navy);
+        padding: 0 22px;
+        color: #fff;
+        font-weight: 800;
+        box-shadow: 0 14px 30px rgba(30, 58, 95, 0.22);
+        cursor: pointer;
+      }
+
+      .secondary {
+        border: 0;
+        background: transparent;
+        color: var(--ink);
+        padding: 0 16px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .preview {
+        border: 1px solid #d6e1ef;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.94);
+        padding: 26px;
+        box-shadow: 0 28px 70px rgba(15, 35, 65, 0.13);
+      }
+
+      .preview-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid #e7edf5;
+        padding-bottom: 20px;
+      }
+
+      .preview-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+      }
+
+      .dots {
+        display: flex;
+        gap: 8px;
+      }
+
+      .dots span {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: #e2e8f0;
+      }
+
+      .dots span:nth-child(2) {
+        background: #cbd5e1;
+      }
+
+      .dots span:nth-child(3) {
+        background: var(--blue);
+      }
+
+      .table {
+        display: grid;
+        grid-template-columns: 1.4fr 0.8fr 0.8fr 0.4fr;
+        gap: 14px;
+        margin-top: 24px;
+        font-size: 15px;
+      }
+
+      .th {
+        color: #64748b;
+        font-weight: 800;
+      }
+
+      .right {
+        text-align: right;
+      }
+
+      .item {
+        padding: 8px 0;
+        font-weight: 800;
+      }
+
+      .value {
+        padding: 8px 0;
+        color: #334155;
         font-weight: 650;
       }
 
-      .hero p {
+      .good {
+        color: #059669;
+      }
+
+      .bad {
+        color: #e11d48;
+      }
+
+      .recommendation {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 28px;
+        border-top: 1px solid #e7edf5;
+        padding-top: 20px;
+      }
+
+      .recommendation strong {
+        color: #64748b;
+        font-size: 12px;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+      }
+
+      .pill {
+        border: 1px solid #b8c9df;
+        border-radius: 999px;
+        background: var(--soft);
+        padding: 9px 15px;
+        color: var(--navy);
+        font-size: 14px;
+        font-weight: 850;
+      }
+
+      .features-wrap {
+        border-top: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.58);
+      }
+
+      .features {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 24px;
+        padding: 76px 0;
+      }
+
+      .feature {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+        padding: 34px;
+        box-shadow: 0 18px 42px rgba(15, 35, 65, 0.06);
+      }
+
+      .feature-icon {
+        display: flex;
+        width: 48px;
+        height: 48px;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 28px;
+        border: 1px solid #c8d7eb;
+        border-radius: 999px;
+        background: var(--soft);
+        color: var(--blue);
+        font-weight: 900;
+      }
+
+      .feature h2 {
+        margin: 0 0 14px;
+        font-size: 20px;
+        font-weight: 650;
+      }
+
+      .feature p {
         margin: 0;
-        color: var(--muted-foreground);
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.75;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .compare-view {
+        padding: 72px 0 88px;
+      }
+
+      .section-kicker {
+        margin: 0 0 12px;
+        color: var(--blue);
+        font-size: 13px;
+        font-weight: 900;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+
+      .compare-view h1 {
+        font-size: clamp(34px, 4vw, 48px);
+      }
+
+      .compare-copy {
+        max-width: 720px;
+        margin: 18px 0 36px;
+        color: var(--muted);
         font-size: 18px;
         line-height: 1.7;
       }
@@ -79,267 +391,468 @@
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 24px;
-        margin-bottom: 32px;
       }
 
       .upload-card {
         display: block;
-        min-height: 188px;
-        padding: 32px;
-        border: 2px dashed var(--border);
-        border-radius: 10px;
-        text-align: center;
+        min-height: 220px;
         cursor: pointer;
+        border: 2px dashed #cbd7e6;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.74);
+        padding: 32px;
+        text-align: center;
         transition:
+          border-color 160ms ease,
           background-color 160ms ease,
-          border-color 160ms ease;
+          box-shadow 160ms ease;
       }
 
       .upload-card:hover,
       .upload-card.has-file {
-        border-color: var(--primary);
-        background: color-mix(in srgb, var(--accent) 55%, white);
+        border-color: var(--blue);
+        background: #fff;
+        box-shadow: 0 18px 46px rgba(37, 99, 235, 0.12);
+      }
+
+      .upload-card input {
+        display: none;
       }
 
       .upload-content {
         display: flex;
-        min-height: 120px;
+        min-height: 150px;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 12px;
+        gap: 16px;
       }
 
-      .icon {
+      .upload-icon {
         width: 48px;
         height: 48px;
-        color: var(--muted-foreground);
+        color: #94a3b8;
       }
 
-      .has-file .icon {
-        color: var(--primary);
+      .has-file .upload-icon {
+        color: var(--blue);
       }
 
       .upload-title {
-        margin: 0 0 4px;
-        font-weight: 600;
+        margin: 0 0 6px;
+        color: var(--ink);
+        font-weight: 800;
       }
 
       .upload-help {
         margin: 0;
-        color: var(--muted-foreground);
+        color: var(--muted);
         font-size: 14px;
       }
 
       .error {
         display: none;
-        margin: 0 0 24px;
-        color: var(--destructive);
+        margin: 24px 0 0;
+        color: #dc2626;
         text-align: center;
         font-size: 14px;
+        font-weight: 800;
       }
 
-      .actions {
+      .compare-actions {
+        margin-top: 32px;
         text-align: center;
       }
 
-      button {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        min-height: 48px;
-        padding: 12px 28px;
-        border: 0;
-        border-radius: 10px;
-        color: #ffffff;
-        background: var(--primary);
-        font: inherit;
-        font-weight: 600;
-        cursor: pointer;
-      }
-
-      button:disabled {
-        opacity: 0.45;
+      .primary:disabled {
+        background: #cbd5e1;
+        box-shadow: none;
         cursor: not-allowed;
       }
 
-      .features {
-        border-top: 1px solid var(--border);
-        padding: 64px 0 0;
-      }
-
-      .feature-grid {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 32px;
-      }
-
-      .feature {
-        text-align: center;
-      }
-
-      .feature-icon {
-        display: inline-flex;
-        width: 48px;
-        height: 48px;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 16px;
-        border-radius: 10px;
-        color: var(--primary);
-        background: color-mix(in srgb, var(--primary) 10%, white);
-      }
-
-      .feature h2 {
-        margin: 0 0 8px;
-        font-size: 18px;
-      }
-
-      .feature p {
-        margin: 0;
-        color: var(--muted-foreground);
-        font-size: 14px;
-        line-height: 1.6;
-      }
-
-      input[type="file"] {
-        display: none;
-      }
-
-      @media (max-width: 760px) {
-        .container {
-          width: min(100% - 32px, 1280px);
+      @media (max-width: 900px) {
+        nav {
+          display: none;
         }
 
-        main {
-          padding: 48px 0;
-        }
-
-        .upload-grid,
-        .feature-grid {
+        .hero,
+        .features,
+        .upload-grid {
           grid-template-columns: 1fr;
+        }
+
+        .hero {
+          gap: 48px;
+          padding-top: 56px;
         }
       }
     </style>
   </head>
   <body>
     <header>
-      <div class="container header-inner">
-        <svg
-          viewBox="0 0 400 140"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          class="logo"
-          aria-label="QuoteWise"
-        >
-          <circle cx="60" cy="70" r="28" stroke="#1e3a5f" stroke-width="10" fill="none"></circle>
-          <line x1="80" y1="88" x2="92" y2="100" stroke="#1e3a5f" stroke-width="10" stroke-linecap="round"></line>
-          <path d="M100 55 L108 95 L116 65 L124 95 L132 55" stroke="#2563eb" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
-          <text x="165" y="85" font-family="system-ui, -apple-system, sans-serif" font-size="48" font-weight="600" fill="#1e3a5f">
-            Quote<tspan fill="#2563eb">Wise</tspan>
-          </text>
-        </svg>
+      <div class="container topbar">
+        <button class="logo-link" type="button" data-view="home" aria-label="Go to QuoteWise home">
+          <img class="logo" src="logo/%EB%A1%9C%EA%B3%A0%20png%202.png" alt="QuoteWise" draggable="false" />
+        </button>
+
+        <nav>
+          <a href="#" data-view="compare" data-i18n="compare">Compare</a>
+          <a href="#" data-view="history" data-i18n="history">History</a>
+        </nav>
+
+        <div class="utility">
+          <label class="language-picker">
+            <span aria-hidden="true">◎</span>
+            <select id="language-select" aria-label="Select language">
+              <option value="en">EN · English</option>
+              <option value="ko">KO · 한국어</option>
+              <option value="ja">JA · 日本語</option>
+            </select>
+          </label>
+          <span>♙ 종환 정</span>
+        </div>
       </div>
     </header>
 
-    <main class="container">
-      <section class="hero">
-        <h1>견적서 비교 분석을 쉽고 빠르게</h1>
-        <p>두 개의 PDF 견적서를 업로드하면 AI가 항목별 가격, 조건, 차이점을 자동으로 분석해드립니다.</p>
+    <main>
+      <section class="container hero" data-panel="home">
+        <div>
+          <div class="eyebrow" data-i18n="eyebrow">Procurement intelligence</div>
+          <h1>
+            <span data-i18n="headline1">Two quotations.</span><br />
+            <span data-i18n="headline2">One clear decision.</span>
+          </h1>
+          <p class="lead" data-i18n="lead">
+            QuoteWise reads your supplier PDFs, aligns line items across vendors, and surfaces the differences that
+            actually move the needle.
+          </p>
+          <div class="actions">
+            <button class="primary" data-view="compare"><span data-i18n="start">Start a comparison</span> <span>→</span></button>
+            <button class="secondary" data-view="history" data-i18n="viewHistory">View history</button>
+          </div>
+        </div>
+
+        <aside class="preview">
+          <div class="preview-head">
+            <div class="preview-brand">✦ QuoteWise</div>
+            <div class="dots"><span></span><span></span><span></span></div>
+          </div>
+
+          <div class="table">
+            <div class="th" data-i18n="tableItem">Item</div>
+            <div class="th right" data-i18n="quoteA">Quote A</div>
+            <div class="th right" data-i18n="quoteB">Quote B</div>
+            <div class="th right" data-i18n="delta">Δ</div>
+
+            <div class="item">Workstation</div>
+            <div class="value right">$2,400</div>
+            <div class="value right">$2,280</div>
+            <div class="value right good">-120</div>
+
+            <div class="item">Display 27”</div>
+            <div class="value right">$580</div>
+            <div class="value right">$620</div>
+            <div class="value right bad">+40</div>
+
+            <div class="item">Onsite setup</div>
+            <div class="value right">$200</div>
+            <div class="value right">$150</div>
+            <div class="value right good">-50</div>
+
+            <div class="item">3-yr support</div>
+            <div class="value right">$720</div>
+            <div class="value right">$690</div>
+            <div class="value right good">-30</div>
+          </div>
+
+          <div class="recommendation">
+            <strong data-i18n="recommendation">Recommendation</strong>
+            <span class="pill" data-i18n="recommendationValue">Quote B · save $190</span>
+          </div>
+        </aside>
       </section>
 
-      <section class="upload-grid" aria-label="견적서 업로드">
-        <label class="upload-card" id="card-1" for="file-1">
-          <input id="file-1" type="file" accept="application/pdf" />
-          <div class="upload-content">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="17 8 12 3 7 8"></polyline>
-              <line x1="12" x2="12" y1="3" y2="15"></line>
-            </svg>
-            <div>
-              <p class="upload-title" id="title-1">첫 번째 견적서 업로드</p>
-              <p class="upload-help" id="help-1">PDF 파일을 선택하거나 여기에 끌어다 놓으세요.</p>
-            </div>
-          </div>
-        </label>
-
-        <label class="upload-card" id="card-2" for="file-2">
-          <input id="file-2" type="file" accept="application/pdf" />
-          <div class="upload-content">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="17 8 12 3 7 8"></polyline>
-              <line x1="12" x2="12" y1="3" y2="15"></line>
-            </svg>
-            <div>
-              <p class="upload-title" id="title-2">두 번째 견적서 업로드</p>
-              <p class="upload-help" id="help-2">PDF 파일을 선택하거나 여기에 끌어다 놓으세요.</p>
-            </div>
-          </div>
-        </label>
-      </section>
-
-      <p class="error" id="error">PDF 파일만 업로드할 수 있습니다.</p>
-
-      <div class="actions">
-        <button id="analyze" disabled>
-          비교 분석 시작하기
-          <span aria-hidden="true">→</span>
-        </button>
-      </div>
-
-      <section class="features">
-        <div class="feature-grid">
+      <section class="features-wrap" data-panel="home">
+        <div class="container features">
           <article class="feature">
             <div class="feature-icon">□</div>
-            <h2>자동 항목 추출</h2>
-            <p>AI가 견적서의 주요 항목과 가격 정보를 자동으로 추출합니다.</p>
+            <h2 data-i18n="feature1Title">Considered extraction</h2>
+            <p data-i18n="feature1Copy">
+              We parse vendor, items, quantities, unit prices, totals, delivery and payment terms, even when each quote
+              uses different wording.
+            </p>
           </article>
           <article class="feature">
-            <div class="feature-icon">✓</div>
-            <h2>항목별 비교</h2>
-            <p>유사 항목을 자동으로 매칭해 정확한 비교 결과를 제공합니다.</p>
+            <div class="feature-icon">≡</div>
+            <h2 data-i18n="feature2Title">Side-by-side, line by line</h2>
+            <p data-i18n="feature2Copy">
+              Items are matched across both documents. Variances are highlighted so you can see at a glance where each
+              vendor wins.
+            </p>
           </article>
           <article class="feature">
-            <div class="feature-icon">→</div>
-            <h2>의사결정 지원</h2>
-            <p>가격 차이와 조건 차이를 한눈에 파악할 수 있습니다.</p>
+            <div class="feature-icon">✦</div>
+            <h2 data-i18n="feature3Title">Insights, not noise</h2>
+            <p data-i18n="feature3Copy">
+              Beyond the table, a brief executive summary calls out the meaningful differences in price, terms and
+              risk.
+            </p>
           </article>
         </div>
+      </section>
+
+      <section class="container compare-view hidden" data-panel="compare">
+        <p class="section-kicker" data-i18n="compare">Compare</p>
+        <h1 data-i18n="compareTitle">Upload two supplier quotations</h1>
+        <p class="compare-copy" data-i18n="compareCopy">
+          Drop in two PDF quotes and QuoteWise will prepare them for line-by-line comparison.
+        </p>
+
+        <div class="upload-grid">
+          <label class="upload-card" id="card-1" for="file-1">
+            <input id="file-1" type="file" accept="application/pdf" />
+            <div class="upload-content">
+              <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" x2="12" y1="3" y2="15"></line>
+              </svg>
+              <div>
+                <p class="upload-title" id="title-1" data-upload-title="1">Upload first quotation</p>
+                <p class="upload-help" id="help-1" data-i18n="uploadHelp">Choose a PDF file or drag it here.</p>
+              </div>
+            </div>
+          </label>
+
+          <label class="upload-card" id="card-2" for="file-2">
+            <input id="file-2" type="file" accept="application/pdf" />
+            <div class="upload-content">
+              <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" x2="12" y1="3" y2="15"></line>
+              </svg>
+              <div>
+                <p class="upload-title" id="title-2" data-upload-title="2">Upload second quotation</p>
+                <p class="upload-help" id="help-2" data-i18n="uploadHelp">Choose a PDF file or drag it here.</p>
+              </div>
+            </div>
+          </label>
+        </div>
+
+        <p class="error" id="error" data-i18n="pdfError">Only PDF files can be uploaded.</p>
+
+        <div class="compare-actions">
+          <button class="primary" id="analyze" disabled><span data-i18n="analyze">Start comparison analysis</span> <span>→</span></button>
+        </div>
+      </section>
+
+      <section class="container compare-view hidden" data-panel="history">
+        <p class="section-kicker" data-i18n="history">History</p>
+        <h1 data-i18n="historyTitle">History is coming soon</h1>
+        <p class="compare-copy" data-i18n="historyCopy">
+          Your previous comparison reports will appear here once project storage is connected.
+        </p>
+        <button class="primary" data-view="compare"><span data-i18n="start">Start a comparison</span> <span>→</span></button>
       </section>
     </main>
 
     <script>
       const files = { 1: null, 2: null };
-      const analyze = document.querySelector("#analyze");
-      const error = document.querySelector("#error");
+      const panels = document.querySelectorAll("[data-panel]");
+      const analyzeButton = document.querySelector("#analyze");
+      const errorMessage = document.querySelector("#error");
+      const languageSelect = document.querySelector("#language-select");
+      let currentLanguage = "en";
+
+      const translations = {
+        en: {
+          compare: "Compare",
+          history: "History",
+          eyebrow: "Procurement intelligence",
+          headline1: "Two quotations.",
+          headline2: "One clear decision.",
+          lead:
+            "QuoteWise reads your supplier PDFs, aligns line items across vendors, and surfaces the differences that actually move the needle.",
+          start: "Start a comparison",
+          viewHistory: "View history",
+          tableItem: "Item",
+          quoteA: "Quote A",
+          quoteB: "Quote B",
+          delta: "Δ",
+          recommendation: "Recommendation",
+          recommendationValue: "Quote B · save $190",
+          feature1Title: "Considered extraction",
+          feature1Copy:
+            "We parse vendor, items, quantities, unit prices, totals, delivery and payment terms, even when each quote uses different wording.",
+          feature2Title: "Side-by-side, line by line",
+          feature2Copy:
+            "Items are matched across both documents. Variances are highlighted so you can see at a glance where each vendor wins.",
+          feature3Title: "Insights, not noise",
+          feature3Copy:
+            "Beyond the table, a brief executive summary calls out the meaningful differences in price, terms and risk.",
+          compareTitle: "Upload two supplier quotations",
+          compareCopy: "Drop in two PDF quotes and QuoteWise will prepare them for line-by-line comparison.",
+          uploadFirst: "Upload first quotation",
+          uploadSecond: "Upload second quotation",
+          uploadHelp: "Choose a PDF file or drag it here.",
+          selectedFirst: "Quotation 1",
+          selectedSecond: "Quotation 2",
+          pdfError: "Only PDF files can be uploaded.",
+          analyze: "Start comparison analysis",
+          historyTitle: "History is coming soon",
+          historyCopy: "Your previous comparison reports will appear here once project storage is connected.",
+        },
+        ko: {
+          compare: "비교",
+          history: "기록",
+          eyebrow: "구매 의사결정 인텔리전스",
+          headline1: "두 개의 견적서.",
+          headline2: "하나의 명확한 결정.",
+          lead:
+            "QuoteWise는 공급업체 PDF를 읽고, 벤더별 항목을 맞춰 비교하며, 실제 의사결정에 영향을 주는 차이를 선명하게 보여줍니다.",
+          start: "비교 시작하기",
+          viewHistory: "기록 보기",
+          tableItem: "항목",
+          quoteA: "견적 A",
+          quoteB: "견적 B",
+          delta: "차이",
+          recommendation: "추천",
+          recommendationValue: "견적 B로 $190 절감",
+          feature1Title: "정교한 항목 추출",
+          feature1Copy:
+            "공급업체, 항목, 수량, 단가, 총액, 납기와 결제 조건까지 견적서 표현이 달라도 핵심 정보를 추출합니다.",
+          feature2Title: "항목별 나란히 비교",
+          feature2Copy:
+            "두 문서의 유사 항목을 매칭하고 차이를 강조해 어떤 공급업체가 유리한지 빠르게 파악할 수 있습니다.",
+          feature3Title: "소음이 아닌 인사이트",
+          feature3Copy: "표를 넘어 가격, 조건, 리스크에서 의미 있는 차이를 짧은 요약으로 보여줍니다.",
+          compareTitle: "공급업체 견적서 두 개를 업로드하세요",
+          compareCopy: "PDF 견적서 두 개를 올리면 QuoteWise가 항목별 비교를 준비합니다.",
+          uploadFirst: "첫 번째 견적서 업로드",
+          uploadSecond: "두 번째 견적서 업로드",
+          uploadHelp: "PDF 파일을 선택하거나 여기에 끌어다 놓으세요.",
+          selectedFirst: "견적서 1",
+          selectedSecond: "견적서 2",
+          pdfError: "PDF 파일만 업로드할 수 있습니다.",
+          analyze: "비교 분석 시작하기",
+          historyTitle: "기록 기능은 준비 중입니다",
+          historyCopy: "프로젝트 저장 기능이 연결되면 이전 비교 리포트가 이곳에 표시됩니다.",
+        },
+        ja: {
+          compare: "比較",
+          history: "履歴",
+          eyebrow: "購買インテリジェンス",
+          headline1: "2つの見積書。",
+          headline2: "ひとつの明確な判断。",
+          lead: "QuoteWiseは仕入先のPDFを読み取り、ベンダー間の明細をそろえて、意思決定に本当に効く差分を可視化します。",
+          start: "比較を開始",
+          viewHistory: "履歴を見る",
+          tableItem: "項目",
+          quoteA: "見積 A",
+          quoteB: "見積 B",
+          delta: "差分",
+          recommendation: "推奨",
+          recommendationValue: "見積 Bで$190削減",
+          feature1Title: "丁寧な情報抽出",
+          feature1Copy:
+            "仕入先、項目、数量、単価、合計、納期、支払条件まで、見積書ごとに表現が違っても主要情報を抽出します。",
+          feature2Title: "明細ごとの横並び比較",
+          feature2Copy: "2つの文書の類似項目を自動で対応づけ、どちらのベンダーが有利かをひと目で確認できます。",
+          feature3Title: "ノイズではなく洞察",
+          feature3Copy: "表だけでなく、価格・条件・リスクの意味ある差分を短い要約で示します。",
+          compareTitle: "2つの仕入先見積書をアップロード",
+          compareCopy: "2つのPDF見積書をアップロードすると、QuoteWiseが明細ごとの比較を準備します。",
+          uploadFirst: "1つ目の見積書をアップロード",
+          uploadSecond: "2つ目の見積書をアップロード",
+          uploadHelp: "PDFファイルを選択するか、ここにドラッグしてください。",
+          selectedFirst: "見積書 1",
+          selectedSecond: "見積書 2",
+          pdfError: "PDFファイルのみアップロードできます。",
+          analyze: "比較分析を開始",
+          historyTitle: "履歴機能は準備中です",
+          historyCopy: "プロジェクト保存機能が接続されると、過去の比較レポートがここに表示されます。",
+        },
+      };
+
+      function applyLanguage(language) {
+        currentLanguage = language;
+        const dictionary = translations[language];
+
+        document.querySelectorAll("[data-i18n]").forEach((node) => {
+          const key = node.dataset.i18n;
+          node.textContent = dictionary[key];
+        });
+
+        document.querySelectorAll("[data-upload-title]").forEach((node) => {
+          const index = node.dataset.uploadTitle;
+          if (files[index]) {
+            node.textContent = index === "1" ? dictionary.selectedFirst : dictionary.selectedSecond;
+          } else {
+            node.textContent = index === "1" ? dictionary.uploadFirst : dictionary.uploadSecond;
+          }
+        });
+
+        document.querySelectorAll(".upload-help").forEach((node) => {
+          const index = node.id.endsWith("1") ? "1" : "2";
+          node.textContent = files[index] ? files[index].name : dictionary.uploadHelp;
+        });
+      }
+
+      function showView(view) {
+        panels.forEach((panel) => {
+          panel.classList.toggle("hidden", panel.dataset.panel !== view);
+        });
+
+        if (view === "history") {
+          console.log("History view requested");
+        }
+
+        window.location.hash = view === "home" ? "" : view;
+      }
 
       function handleFile(index, event) {
         const file = event.target.files[0];
         if (!file) return;
 
         if (file.type !== "application/pdf") {
-          error.style.display = "block";
+          errorMessage.style.display = "block";
           event.target.value = "";
           return;
         }
 
-        error.style.display = "none";
         files[index] = file;
+        errorMessage.style.display = "none";
         document.querySelector(`#card-${index}`).classList.add("has-file");
-        document.querySelector(`#title-${index}`).textContent = `견적서 ${index}`;
-        document.querySelector(`#help-${index}`).textContent = file.name;
-        analyze.disabled = !(files[1] && files[2]);
-      }
+          document.querySelector(`#title-${index}`).textContent =
+            index === 1 ? translations[currentLanguage].selectedFirst : translations[currentLanguage].selectedSecond;
+          document.querySelector(`#help-${index}`).textContent = file.name;
+          analyzeButton.disabled = !(files[1] && files[2]);
+        }
+
+      document.querySelectorAll("[data-view]").forEach((trigger) => {
+        trigger.addEventListener("click", (event) => {
+          event.preventDefault();
+          showView(trigger.dataset.view);
+        });
+      });
 
       document.querySelector("#file-1").addEventListener("change", (event) => handleFile(1, event));
       document.querySelector("#file-2").addEventListener("change", (event) => handleFile(2, event));
-      analyze.addEventListener("click", () => {
+      languageSelect.addEventListener("change", (event) => applyLanguage(event.target.value));
+      analyzeButton.addEventListener("click", () => {
         if (files[1] && files[2]) {
           console.log("분석 시작:", files[1].name, files[2].name);
         }
       });
+
+      if (window.location.hash === "#compare") {
+        showView("compare");
+      } else if (window.location.hash === "#history") {
+        showView("history");
+      }
+
+      applyLanguage("en");
     </script>
   </body>
 </html>
