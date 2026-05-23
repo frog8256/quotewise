@@ -57,7 +57,7 @@
         position: absolute;
         left: 0;
         top: 50%;
-        width: 100%;
+        width: 94%;
         max-width: none;
         transform: translateY(-50%);
         user-select: none;
@@ -67,8 +67,8 @@
         position: relative;
         display: inline-flex;
         align-items: center;
-        width: 260px;
-        height: 48px;
+        width: 252px;
+        height: 56px;
         overflow: hidden;
         border: 0;
         background: transparent;
@@ -78,10 +78,11 @@
 
       nav {
         display: flex;
-        gap: 40px;
+        align-items: center;
+        gap: 36px;
         color: var(--muted);
-        font-size: 15px;
-        font-weight: 600;
+        font-size: 14px;
+        font-weight: 800;
       }
 
       nav a,
@@ -90,8 +91,39 @@
         text-decoration: none;
       }
 
-      nav a:first-child {
+      nav a {
+        position: relative;
+        display: inline-flex;
+        height: 40px;
+        align-items: center;
+        border: 0;
+        border-radius: 0;
+        padding: 0;
+        letter-spacing: 0.01em;
+        transition:
+          color 160ms ease;
+      }
+
+      nav a::after {
+        position: absolute;
+        left: 0;
+        bottom: 3px;
+        width: 0;
+        height: 2px;
+        border-radius: 999px;
+        background: var(--blue);
+        content: "";
+        transition: width 160ms ease;
+      }
+
+      nav a:hover,
+      nav a.active {
         color: var(--navy);
+      }
+
+      nav a:hover::after,
+      nav a.active::after {
+        width: 100%;
       }
 
       .utility {
@@ -130,6 +162,29 @@
       .language-picker select:focus {
         border-color: #c8d7eb;
         background: #fff;
+      }
+
+      .login-button {
+        display: inline-flex;
+        height: 40px;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid #c8d7eb;
+        border-radius: 10px;
+        background: #fff;
+        padding: 0 16px;
+        color: var(--ink);
+        font: inherit;
+        font-weight: 800;
+        cursor: pointer;
+        transition:
+          border-color 160ms ease,
+          color 160ms ease;
+      }
+
+      .login-button:hover {
+        border-color: var(--blue);
+        color: var(--blue);
       }
 
       .hero {
@@ -496,20 +551,19 @@
         </button>
 
         <nav>
-          <a href="#" data-view="compare" data-i18n="compare">Compare</a>
-          <a href="#" data-view="history" data-i18n="history">History</a>
+          <a href="#" data-view="compare" data-nav="compare" data-i18n="compare">Compare</a>
+          <a href="#" data-view="history" data-nav="history" data-i18n="history">History</a>
         </nav>
 
         <div class="utility">
           <label class="language-picker">
-            <span aria-hidden="true">◎</span>
             <select id="language-select" aria-label="Select language">
               <option value="en">EN · English</option>
               <option value="ko">KO · 한국어</option>
               <option value="ja">JA · 日本語</option>
             </select>
           </label>
-          <span>♙ 종환 정</span>
+          <button class="login-button" type="button">♙ <span data-i18n="login">Log in</span></button>
         </div>
       </div>
     </header>
@@ -700,6 +754,7 @@
           selectedSecond: "Quotation 2",
           pdfError: "Only PDF files can be uploaded.",
           analyze: "Start comparison analysis",
+          login: "Log in",
           historyTitle: "History is coming soon",
           historyCopy: "Your previous comparison reports will appear here once project storage is connected.",
         },
@@ -736,6 +791,7 @@
           selectedSecond: "견적서 2",
           pdfError: "PDF 파일만 업로드할 수 있습니다.",
           analyze: "비교 분석 시작하기",
+          login: "로그인",
           historyTitle: "기록 기능은 준비 중입니다",
           historyCopy: "프로젝트 저장 기능이 연결되면 이전 비교 리포트가 이곳에 표시됩니다.",
         },
@@ -770,6 +826,7 @@
           selectedSecond: "見積書 2",
           pdfError: "PDFファイルのみアップロードできます。",
           analyze: "比較分析を開始",
+          login: "ログイン",
           historyTitle: "履歴機能は準備中です",
           historyCopy: "プロジェクト保存機能が接続されると、過去の比較レポートがここに表示されます。",
         },
@@ -802,6 +859,10 @@
       function showView(view) {
         panels.forEach((panel) => {
           panel.classList.toggle("hidden", panel.dataset.panel !== view);
+        });
+
+        document.querySelectorAll("[data-nav]").forEach((navItem) => {
+          navItem.classList.toggle("active", navItem.dataset.nav === view);
         });
 
         if (view === "history") {

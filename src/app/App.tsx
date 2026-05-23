@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
   FileSearch,
-  Globe2,
   History,
   Layers3,
+  Loader2,
   Sparkles,
   Upload,
   User,
@@ -13,7 +13,7 @@ import {
 import { Button } from '@mui/material';
 import Logo from './components/Logo';
 
-type ActiveView = 'home' | 'compare' | 'history';
+type ActiveView = 'home' | 'compare' | 'analyzing' | 'results' | 'history';
 type Language = 'en' | 'ko' | 'ja';
 
 const languages: Array<{ code: Language; label: string; short: string }> = [
@@ -42,9 +42,35 @@ const copy = {
     selectedFirst: 'Quotation 1',
     selectedSecond: 'Quotation 2',
     analyze: 'Start comparison analysis',
+    analyzingTitle: 'Analyzing your quotations',
+    analyzingCopy: 'QuoteWise is aligning items, checking price gaps, and preparing a decision-ready summary.',
+    results: 'Results',
+    resultsTitle: 'Quote B is the stronger choice',
+    resultsCopy: 'Quote B is lower overall and wins on setup cost and support pricing. Quote A is only cheaper on the display line.',
+    totalSavings: 'Estimated savings',
+    recommendedVendor: 'Recommended quote',
+    matchedItems: 'Matched items',
+    coverageGaps: 'Coverage gaps',
+    keyInsights: 'Key insights',
+    quoteA: 'Quote A',
+    quoteB: 'Quote B',
+    delta: 'Delta',
+    differentBasis: 'Different basis',
+    onlyInA: 'Only in A',
+    onlyInB: 'Only in B',
+    summary: 'Summary',
+    newComparison: 'New comparison',
     pdfError: 'Only PDF files can be uploaded.',
+    login: 'Log in',
     historyTitle: 'History is coming soon',
     historyCopy: 'Your previous comparison reports will appear here once project storage is connected.',
+    insightItems: [
+      'Quote B saves $190 across matched line items.',
+      'The display line is the only item where Quote A is cheaper.',
+      'Cable management appears only in Quote A.',
+      'Priority delivery appears only in Quote B and should be checked before approval.',
+      'Raw material freight uses a different pricing basis and needs normalization before final comparison.',
+    ],
     features: [
       {
         title: 'Considered extraction',
@@ -79,9 +105,35 @@ const copy = {
     selectedFirst: '견적서 1',
     selectedSecond: '견적서 2',
     analyze: '비교 분석 시작하기',
+    analyzingTitle: '견적서를 분석하고 있습니다',
+    analyzingCopy: 'QuoteWise가 항목을 맞추고, 가격 차이를 확인하며, 의사결정용 요약을 준비하고 있습니다.',
+    results: '결과',
+    resultsTitle: '견적 B가 더 유리합니다',
+    resultsCopy: '견적 B는 전체 비용이 더 낮고 설치비와 지원 비용에서 우세합니다. 견적 A는 디스플레이 항목에서만 더 저렴합니다.',
+    totalSavings: '예상 절감액',
+    recommendedVendor: '추천 견적',
+    matchedItems: '매칭된 항목',
+    coverageGaps: '포함 범위 차이',
+    keyInsights: '핵심 인사이트',
+    quoteA: '견적 A',
+    quoteB: '견적 B',
+    delta: '차이',
+    differentBasis: '기준 다름',
+    onlyInA: 'A에만 있음',
+    onlyInB: 'B에만 있음',
+    summary: '요약',
+    newComparison: '새 비교 시작',
     pdfError: 'PDF 파일만 업로드할 수 있습니다.',
+    login: '로그인',
     historyTitle: '기록 기능은 준비 중입니다',
     historyCopy: '프로젝트 저장 기능이 연결되면 이전 비교 리포트가 이곳에 표시됩니다.',
+    insightItems: [
+      '매칭된 항목 기준으로 견적 B가 $190 절감됩니다.',
+      '디스플레이 항목만 견적 A가 더 저렴합니다.',
+      '케이블 정리 키트는 견적 A에만 포함되어 있습니다.',
+      '우선 배송은 견적 B에만 포함되어 있어 승인 전 확인이 필요합니다.',
+      '원자재 운송비는 산정 기준이 달라 최종 비교 전에 기준 정규화가 필요합니다.',
+    ],
     features: [
       {
         title: '정교한 항목 추출',
@@ -116,9 +168,35 @@ const copy = {
     selectedFirst: '見積書 1',
     selectedSecond: '見積書 2',
     analyze: '比較分析を開始',
+    analyzingTitle: '見積書を分析しています',
+    analyzingCopy: 'QuoteWiseが明細を照合し、価格差を確認し、判断しやすい要約を準備しています。',
+    results: '結果',
+    resultsTitle: '見積 Bがより有利です',
+    resultsCopy: '見積 Bは全体コストが低く、設置費とサポート費で優位です。見積 Aが安いのはディスプレイ項目のみです。',
+    totalSavings: '推定削減額',
+    recommendedVendor: '推奨見積',
+    matchedItems: '照合済み項目',
+    coverageGaps: '含まれる範囲の差',
+    keyInsights: '主なインサイト',
+    quoteA: '見積 A',
+    quoteB: '見積 B',
+    delta: '差分',
+    differentBasis: '基準が異なる',
+    onlyInA: 'Aのみ',
+    onlyInB: 'Bのみ',
+    summary: '要約',
+    newComparison: '新しい比較',
     pdfError: 'PDFファイルのみアップロードできます。',
+    login: 'ログイン',
     historyTitle: '履歴機能は準備中です',
     historyCopy: 'プロジェクト保存機能が接続されると、過去の比較レポートがここに表示されます。',
+    insightItems: [
+      '照合済み項目では、見積 Bにより$190削減できます。',
+      'ディスプレイ項目のみ、見積 Aの方が安くなっています。',
+      'ケーブル整理キットは見積 Aにのみ含まれています。',
+      '優先配送は見積 Bにのみ含まれているため、承認前に確認が必要です。',
+      '原材料の運送費は算定基準が異なるため、最終比較前に基準の正規化が必要です。',
+    ],
     features: [
       {
         title: '丁寧な情報抽出',
@@ -145,6 +223,69 @@ const previewRows = [
 
 const featureIcons = [FileSearch, Layers3, Sparkles];
 
+const resultRows = [
+  {
+    item: 'Workstation',
+    quoteA: '$2,400',
+    quoteB: '$2,280',
+    delta: '-$120',
+    note: 'Quote B is lower with equivalent workstation specs.',
+    tone: 'text-emerald-600',
+  },
+  {
+    item: 'Display 27"',
+    quoteA: '$580',
+    quoteB: '$620',
+    delta: '+$40',
+    note: 'Quote A is cheaper for the display line.',
+    tone: 'text-rose-600',
+  },
+  {
+    item: 'Onsite setup',
+    quoteA: '$200',
+    quoteB: '$150',
+    delta: '-$50',
+    note: 'Quote B reduces implementation cost.',
+    tone: 'text-emerald-600',
+  },
+  {
+    item: '3-yr support',
+    quoteA: '$720',
+    quoteB: '$690',
+    delta: '-$30',
+    note: 'Quote B offers lower support pricing.',
+    tone: 'text-emerald-600',
+  },
+  {
+    item: 'Cable management kit',
+    quoteA: '$180',
+    quoteB: 'Not included',
+    delta: 'Only in A',
+    deltaKey: 'onlyInA',
+    note: 'Quote A includes this installation accessory as a separate line item.',
+    tone: 'text-amber-600',
+  },
+  {
+    item: 'Priority delivery',
+    quoteA: 'Not included',
+    quoteB: '$95',
+    delta: 'Only in B',
+    deltaKey: 'onlyInB',
+    note: 'Quote B includes priority delivery as a separate charge.',
+    tone: 'text-blue-600',
+  },
+  {
+    item: 'Raw material freight',
+    quoteA: '$12 / kg',
+    quoteB: '$300 fixed',
+    delta: 'basis',
+    note: 'Quote A prices freight by weight, while Quote B uses a fixed freight charge.',
+    tone: 'text-slate-700',
+    color: '#DB2777',
+    basis: 'different',
+  },
+];
+
 export default function App() {
   const [activeView, setActiveView] = useState<ActiveView>('home');
   const [language, setLanguage] = useState<Language>('en');
@@ -152,6 +293,19 @@ export default function App() {
   const [file2, setFile2] = useState<File | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const t = copy[language];
+
+  useEffect(() => {
+    if (activeView !== 'analyzing') {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setActiveView('results');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 2600);
+
+    return () => window.clearTimeout(timer);
+  }, [activeView]);
 
   const showCompare = () => {
     setErrorMessage('');
@@ -178,7 +332,9 @@ export default function App() {
       return;
     }
 
-    if (file.type !== 'application/pdf') {
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+    if (!isPdf) {
       setErrorMessage(t.pdfError);
       event.target.value = '';
       return;
@@ -195,7 +351,8 @@ export default function App() {
   const handleAnalyze = () => {
     if (file1 && file2) {
       console.log('분석 시작:', file1.name, file2.name);
-      // TODO: 견적서 비교 분석 로직에 연결합니다.
+      setActiveView('analyzing');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
@@ -206,18 +363,20 @@ export default function App() {
           <button
             type="button"
             onClick={() => setActiveView('home')}
-            className="flex items-center border-0 bg-transparent p-0"
+            className="flex cursor-pointer items-center border-0 bg-transparent p-0"
             aria-label="Go to QuoteWise home"
           >
-            <Logo className="h-10 w-auto" />
+            <Logo className="h-14 w-auto" />
           </button>
 
-          <nav className="hidden items-center gap-10 text-sm font-medium text-slate-500 md:flex">
+          <nav className="hidden items-center gap-9 md:flex">
             <button
               type="button"
               onClick={showCompare}
-              className={`border-0 bg-transparent transition-colors hover:text-[#1e3a5f] ${
-                activeView === 'compare' ? 'text-[#1e3a5f]' : ''
+              className={`relative inline-flex h-10 cursor-pointer items-center border-0 bg-transparent px-0 text-sm font-bold tracking-[0.01em] transition-colors after:absolute after:-bottom-1 after:left-0 after:h-0.5 after:rounded-full after:bg-[#2563eb] after:transition-all ${
+                ['compare', 'analyzing', 'results'].includes(activeView)
+                  ? 'text-[#1e3a5f] after:w-full'
+                  : 'text-slate-500 after:w-0 hover:text-[#1e3a5f] hover:after:w-full'
               }`}
             >
               {t.compare}
@@ -225,8 +384,10 @@ export default function App() {
             <button
               type="button"
               onClick={showHistory}
-              className={`border-0 bg-transparent transition-colors hover:text-[#1e3a5f] ${
-                activeView === 'history' ? 'text-[#1e3a5f]' : ''
+              className={`relative inline-flex h-10 cursor-pointer items-center border-0 bg-transparent px-0 text-sm font-bold tracking-[0.01em] transition-colors after:absolute after:-bottom-1 after:left-0 after:h-0.5 after:rounded-full after:bg-[#2563eb] after:transition-all ${
+                activeView === 'history'
+                  ? 'text-[#1e3a5f] after:w-full'
+                  : 'text-slate-500 after:w-0 hover:text-[#1e3a5f] hover:after:w-full'
               }`}
             >
               {t.history}
@@ -235,12 +396,11 @@ export default function App() {
 
           <div className="flex items-center gap-5 text-sm font-medium text-slate-600">
             <label className="hidden items-center gap-2 sm:flex">
-              <Globe2 className="h-4 w-4" />
               <select
                 value={language}
                 onChange={handleLanguageChange}
                 aria-label="Select language"
-                className="rounded-md border border-transparent bg-transparent px-1 py-1 font-semibold text-slate-600 outline-none transition-colors hover:border-[#c8d7eb] focus:border-[#2563eb] focus:bg-white"
+                className="cursor-pointer rounded-md border border-transparent bg-transparent px-1 py-1 font-semibold text-slate-600 outline-none transition-colors hover:border-[#c8d7eb] focus:border-[#2563eb] focus:bg-white"
               >
                 {languages.map((option) => (
                   <option key={option.code} value={option.code}>
@@ -249,10 +409,14 @@ export default function App() {
                 ))}
               </select>
             </label>
-            <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => console.log('Login requested')}
+              className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-[#c8d7eb] bg-white px-4 font-semibold text-[#10243f] transition-colors hover:border-[#2563eb] hover:text-[#2563eb]"
+            >
               <User className="h-4 w-4" />
-              <span>종환 정</span>
-            </div>
+              <span>{t.login}</span>
+            </button>
           </div>
         </div>
       </header>
@@ -283,6 +447,7 @@ export default function App() {
                       backgroundColor: '#1e3a5f',
                       borderRadius: '10px',
                       boxShadow: '0 14px 30px rgba(30, 58, 95, 0.22)',
+                      cursor: 'pointer',
                       fontSize: '1rem',
                       fontWeight: 700,
                       textTransform: 'none',
@@ -294,7 +459,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={showHistory}
-                    className="inline-flex h-12 items-center justify-center rounded-lg border-0 bg-transparent px-5 text-base font-semibold text-[#10243f] transition-colors hover:text-[#2563eb]"
+                    className="inline-flex h-12 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent px-5 text-base font-semibold text-[#10243f] transition-colors hover:text-[#2563eb]"
                   >
                     {t.viewHistory}
                   </button>
@@ -339,6 +504,12 @@ export default function App() {
             onFileUpload={handleFileUpload}
             onAnalyze={handleAnalyze}
           />
+        ) : null}
+
+        {activeView === 'analyzing' ? <AnalyzingSection t={t} /> : null}
+
+        {activeView === 'results' ? (
+          <ResultsSection t={t} language={language} file1={file1} file2={file2} onNewComparison={showCompare} />
         ) : null}
 
         {activeView === 'history' ? <HistorySection t={t} onStartComparison={showCompare} /> : null}
@@ -455,6 +626,7 @@ function UploadSection({
             backgroundColor: '#1e3a5f',
             borderRadius: '10px',
             boxShadow: '0 14px 30px rgba(30, 58, 95, 0.2)',
+            cursor: file1 && file2 ? 'pointer' : 'not-allowed',
             fontSize: '1rem',
             fontWeight: 700,
             textTransform: 'none',
@@ -520,6 +692,193 @@ function UploadCard({
   );
 }
 
+function AnalyzingSection({ t }: { t: (typeof copy)[Language] }) {
+  return (
+    <section className="mx-auto flex min-h-[520px] max-w-7xl items-center justify-center px-5 py-16 md:px-8">
+      <div className="max-w-xl rounded-2xl border border-[#dbe5f1] bg-white p-10 text-center shadow-[0_22px_54px_rgba(15,35,65,0.08)]">
+        <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-[#eff6ff] text-[#2563eb]">
+          <Loader2 className="h-7 w-7 animate-spin" />
+        </div>
+        <p className="mb-3 text-sm font-bold uppercase tracking-[0.2em] text-[#2563eb]">{t.compare}</p>
+        <h2 className="text-3xl font-semibold text-[#10243f]">{t.analyzingTitle}</h2>
+        <p className="mt-4 text-base leading-7 text-slate-600">{t.analyzingCopy}</p>
+      </div>
+    </section>
+  );
+}
+
+function ResultsSection({
+  t,
+  language,
+  file1,
+  file2,
+  onNewComparison,
+}: {
+  t: (typeof copy)[Language];
+  language: Language;
+  file1: File | null;
+  file2: File | null;
+  onNewComparison: () => void;
+}) {
+  return (
+    <section className="mx-auto max-w-7xl px-5 py-12 md:px-8 md:py-16">
+      <div className="mb-8 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="mb-3 text-sm font-bold uppercase tracking-[0.2em] text-[#2563eb]">{t.results}</p>
+          <h2 className="max-w-3xl text-4xl font-semibold text-[#10243f]">{t.resultsTitle}</h2>
+          <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-600">{t.resultsCopy}</p>
+        </div>
+        <Button
+          variant="outlined"
+          size="large"
+          onClick={onNewComparison}
+          sx={{
+            alignSelf: { xs: 'flex-start', md: 'auto' },
+            borderColor: '#b8c9df',
+            borderRadius: '10px',
+            color: '#1e3a5f',
+            cursor: 'pointer',
+            fontWeight: 700,
+            px: 2.5,
+            py: 1.2,
+            textTransform: 'none',
+            '&:hover': {
+              borderColor: '#2563eb',
+              backgroundColor: '#eff6ff',
+            },
+          }}
+        >
+          {t.newComparison}
+        </Button>
+      </div>
+
+      <div className="mb-6 grid gap-4 md:grid-cols-3">
+        <MetricCard label={t.totalSavings} value="$190" helper="7.1% lower than Quote A" />
+        <MetricCard label={t.recommendedVendor} value={t.quoteB} helper="3 of 4 matched lines are lower" />
+        <MetricCard label={t.coverageGaps} value="2" helper="Items appear in only one quote" />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
+        <div className="overflow-hidden rounded-2xl border border-[#dbe5f1] bg-white shadow-[0_18px_42px_rgba(15,35,65,0.06)]">
+          <div className="border-b border-[#e7edf5] px-6 py-5">
+            <h3 className="text-lg font-semibold text-[#10243f]">{t.summary}</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              {file1?.name || t.selectedFirst} vs {file2?.name || t.selectedSecond}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-[1.2fr_0.7fr_0.7fr_0.5fr] gap-4 border-b border-[#eef3f8] px-6 py-4 text-sm font-bold text-slate-500">
+            <div>{t.previewHeaders[0]}</div>
+            <div className="text-right">{t.quoteA}</div>
+            <div className="text-right">{t.quoteB}</div>
+            <div className="text-right">{t.delta}</div>
+          </div>
+
+          {resultRows.map((row) => (
+            <div
+              key={row.item}
+              className="grid grid-cols-[1.2fr_0.7fr_0.7fr_0.5fr] gap-4 border-b border-[#eef3f8] px-6 py-4 last:border-b-0"
+            >
+              <div>
+                <p className="font-semibold text-[#10243f]">{row.item}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">{row.note}</p>
+              </div>
+              <QuoteValue value={row.quoteA} />
+              <QuoteValue value={row.quoteB} />
+              <DeltaValue
+                value={getDeltaValue(row, t)}
+                tone={row.tone}
+                color={'color' in row ? row.color : undefined}
+                stacked={'basis' in row && row.basis === 'different' && language === 'en'}
+              />
+            </div>
+          ))}
+        </div>
+
+        <aside className="rounded-2xl border border-[#dbe5f1] bg-white p-6 shadow-[0_18px_42px_rgba(15,35,65,0.06)]">
+          <h3 className="text-lg font-semibold text-[#10243f]">{t.keyInsights}</h3>
+          <div className="mt-5 space-y-4">
+            {t.insightItems.map((item) => (
+              <div key={item} className="flex gap-3">
+                <CheckCircle2 className="mt-0.5 h-5 w-5 flex-none text-emerald-600" />
+                <p className="text-sm leading-6 text-slate-600">{item}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-7 rounded-xl border border-[#b8c9df] bg-[#f8fbff] p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">{t.recommendation}</p>
+            <p className="mt-2 text-lg font-bold text-[#1e3a5f]">{t.recommendationValue}</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function QuoteValue({ value }: { value: string }) {
+  if (value === 'Not included') {
+    return <div className="text-right text-lg font-semibold text-amber-600">-</div>;
+  }
+
+  return <div className="text-right font-semibold text-slate-700">{value}</div>;
+}
+
+function getDeltaValue(row: (typeof resultRows)[number], t: (typeof copy)[Language]) {
+  if ('basis' in row && row.basis === 'different') {
+    return t.differentBasis;
+  }
+
+  if ('deltaKey' in row) {
+    return row.deltaKey === 'onlyInA' ? t.onlyInA : t.onlyInB;
+  }
+
+  return row.delta;
+}
+
+function DeltaValue({
+  value,
+  tone,
+  color,
+  stacked = false,
+}: {
+  value: string;
+  tone: string;
+  color?: string;
+  stacked?: boolean;
+}) {
+  const style = color ? { color } : undefined;
+
+  if (stacked) {
+    const [firstWord, ...restWords] = value.split(' ');
+    const secondLine = restWords.join(' ');
+
+    return (
+      <div className={`flex justify-end text-right text-sm font-bold leading-5 ${tone}`} style={style}>
+        <span className="inline-flex flex-col items-end">
+          <span>{firstWord}</span>
+          {secondLine ? <span>{secondLine}</span> : null}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`text-right text-sm font-bold ${tone}`} style={style}>
+      {value}
+    </div>
+  );
+}
+
+function MetricCard({ label, value, helper }: { label: string; value: string; helper: string }) {
+  return (
+    <div className="rounded-2xl border border-[#dbe5f1] bg-white p-6 shadow-[0_18px_42px_rgba(15,35,65,0.05)]">
+      <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <p className="mt-3 text-3xl font-semibold text-[#10243f]">{value}</p>
+      <p className="mt-2 text-sm text-slate-500">{helper}</p>
+    </div>
+  );
+}
+
 function HistorySection({ t, onStartComparison }: { t: (typeof copy)[Language]; onStartComparison: () => void }) {
   return (
     <section className="mx-auto max-w-7xl px-5 py-16 md:px-8 md:py-20">
@@ -540,6 +899,7 @@ function HistorySection({ t, onStartComparison }: { t: (typeof copy)[Language]; 
             py: 1.4,
             backgroundColor: '#1e3a5f',
             borderRadius: '10px',
+            cursor: 'pointer',
             fontSize: '1rem',
             fontWeight: 700,
             textTransform: 'none',
