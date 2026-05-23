@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
@@ -9,12 +9,57 @@ import {
   Sparkles,
   Upload,
   User,
+  X,
 } from 'lucide-react';
 import { Button } from '@mui/material';
 import Logo from './components/Logo';
 
 type ActiveView = 'home' | 'compare' | 'analyzing' | 'results' | 'history';
 type Language = 'en' | 'ko' | 'ja';
+type UserSession = {
+  name: string;
+  email: string;
+  picture?: string;
+  provider: 'google';
+};
+
+const authStorageKey = 'quotewise.user';
+const googleScriptId = 'google-identity-services';
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+
+type GoogleCredentialResponse = {
+  credential?: string;
+};
+
+type GoogleIdentityApi = {
+  accounts: {
+    id: {
+      initialize: (config: {
+        client_id: string;
+        callback: (response: GoogleCredentialResponse) => void;
+        ux_mode?: 'popup' | 'redirect';
+      }) => void;
+      renderButton: (
+        parent: HTMLElement,
+        options: {
+          theme?: 'outline' | 'filled_blue' | 'filled_black';
+          size?: 'large' | 'medium' | 'small';
+          type?: 'standard' | 'icon';
+          shape?: 'rectangular' | 'pill' | 'circle' | 'square';
+          text?: 'signin_with' | 'signup_with' | 'continue_with' | 'signin';
+          width?: number;
+        },
+      ) => void;
+      disableAutoSelect: () => void;
+    };
+  };
+};
+
+declare global {
+  interface Window {
+    google?: GoogleIdentityApi;
+  }
+}
 
 const languages: Array<{ code: Language; label: string; short: string }> = [
   { code: 'en', label: 'English', short: 'EN' },
@@ -62,6 +107,14 @@ const copy = {
     newComparison: 'New comparison',
     pdfError: 'Only PDF files can be uploaded.',
     login: 'Log in',
+    account: 'Account',
+    loginTitle: 'Continue with Google',
+    loginCopy: 'Sign in with Google to save and revisit your quotation comparisons.',
+    logout: 'Log out',
+    loggedInAs: 'Logged in as',
+    googleLoginUnavailable: 'Add VITE_GOOGLE_CLIENT_ID to enable Google login.',
+    googleLoginLoading: 'Loading Google sign-in...',
+    googleLoginError: 'Google login could not be completed. Please try again.',
     historyTitle: 'History is coming soon',
     historyCopy: 'Your previous comparison reports will appear here once project storage is connected.',
     insightItems: [
@@ -125,6 +178,14 @@ const copy = {
     newComparison: '새 비교 시작',
     pdfError: 'PDF 파일만 업로드할 수 있습니다.',
     login: '로그인',
+    account: '계정',
+    loginTitle: 'Google로 계속하기',
+    loginCopy: '다음 MVP 단계에서 비교 기록을 이어갈 수 있도록 Google 계정으로 로그인하세요.',
+    logout: '로그아웃',
+    loggedInAs: '로그인 계정',
+    googleLoginUnavailable: 'Google 로그인을 사용하려면 VITE_GOOGLE_CLIENT_ID를 추가하세요.',
+    googleLoginLoading: 'Google 로그인을 불러오는 중입니다...',
+    googleLoginError: 'Google 로그인을 완료할 수 없습니다. 다시 시도하세요.',
     historyTitle: '기록 기능은 준비 중입니다',
     historyCopy: '프로젝트 저장 기능이 연결되면 이전 비교 리포트가 이곳에 표시됩니다.',
     insightItems: [
@@ -188,6 +249,14 @@ const copy = {
     newComparison: '新しい比較',
     pdfError: 'PDFファイルのみアップロードできます。',
     login: 'ログイン',
+    account: 'アカウント',
+    loginTitle: 'Googleで続行',
+    loginCopy: '次のMVP段階で比較履歴を利用できるよう、Googleアカウントでログインしてください。',
+    logout: 'ログアウト',
+    loggedInAs: 'ログイン中',
+    googleLoginUnavailable: 'Googleログインを有効にするには VITE_GOOGLE_CLIENT_ID を追加してください。',
+    googleLoginLoading: 'Googleログインを読み込み中...',
+    googleLoginError: 'Googleログインを完了できませんでした。もう一度お試しください。',
     historyTitle: '履歴機能は準備中です',
     historyCopy: 'プロジェクト保存機能が接続されると、過去の比較レポートがここに表示されます。',
     insightItems: [
@@ -292,7 +361,75 @@ export default function App() {
   const [file1, setFile1] = useState<File | null>(null);
   const [file2, setFile2] = useState<File | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [isGoogleReady, setIsGoogleReady] = useState(Boolean(window.google));
+  const [googleError, setGoogleError] = useState('');
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const t = copy[language];
+
+  useEffect(() => {
+    const savedUser = window.localStorage.getItem(authStorageKey);
+
+    if (!savedUser) {
+      return;
+    }
+
+    try {
+      const parsedUser = JSON.parse(savedUser) as UserSession;
+      if (parsedUser.provider === 'google' && parsedUser.name && parsedUser.email) {
+        setCurrentUser(parsedUser);
+      } else {
+        window.localStorage.removeItem(authStorageKey);
+      }
+    } catch {
+      window.localStorage.removeItem(authStorageKey);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!googleClientId || window.google) {
+      setIsGoogleReady(Boolean(window.google));
+      return;
+    }
+
+    const existingScript = document.getElementById(googleScriptId) as HTMLScriptElement | null;
+
+    if (existingScript) {
+      existingScript.addEventListener('load', () => setIsGoogleReady(true), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = googleScriptId;
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setIsGoogleReady(true);
+    script.onerror = () => setGoogleError(t.googleLoginError);
+    document.head.appendChild(script);
+  }, [t.googleLoginError]);
+
+  useEffect(() => {
+    if (!isLoginOpen || !isGoogleReady || !googleClientId || !window.google || !googleButtonRef.current) {
+      return;
+    }
+
+    googleButtonRef.current.innerHTML = '';
+    window.google.accounts.id.initialize({
+      client_id: googleClientId,
+      callback: handleGoogleCredential,
+      ux_mode: 'popup',
+    });
+    window.google.accounts.id.renderButton(googleButtonRef.current, {
+      theme: 'outline',
+      size: 'large',
+      type: 'standard',
+      shape: 'rectangular',
+      text: 'continue_with',
+      width: 340,
+    });
+  }, [isLoginOpen, isGoogleReady]);
 
   useEffect(() => {
     if (activeView !== 'analyzing') {
@@ -323,6 +460,49 @@ export default function App() {
     const nextLanguage = event.target.value as Language;
     setLanguage(nextLanguage);
     setErrorMessage('');
+    setGoogleError('');
+  };
+
+  const openLogin = () => {
+    setGoogleError('');
+    setIsLoginOpen(true);
+  };
+
+  const closeLogin = () => {
+    setIsLoginOpen(false);
+    setGoogleError('');
+  };
+
+  const handleGoogleCredential = (response: GoogleCredentialResponse) => {
+    if (!response.credential) {
+      setGoogleError(t.googleLoginError);
+      return;
+    }
+
+    const profile = parseGoogleCredential(response.credential);
+
+    if (!profile) {
+      setGoogleError(t.googleLoginError);
+      return;
+    }
+
+    const nextUser = {
+      name: profile.name || profile.email,
+      email: profile.email,
+      picture: profile.picture,
+      provider: 'google' as const,
+    };
+    setCurrentUser(nextUser);
+    window.localStorage.setItem(authStorageKey, JSON.stringify(nextUser));
+    setIsLoginOpen(false);
+    setGoogleError('');
+  };
+
+  const handleLogout = () => {
+    window.google?.accounts.id.disableAutoSelect();
+    setCurrentUser(null);
+    window.localStorage.removeItem(authStorageKey);
+    setIsLoginOpen(false);
   };
 
   const handleFileUpload = (fileNumber: 1 | 2, event: React.ChangeEvent<HTMLInputElement>) => {
@@ -411,11 +591,11 @@ export default function App() {
             </label>
             <button
               type="button"
-              onClick={() => console.log('Login requested')}
+              onClick={openLogin}
               className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-[#c8d7eb] bg-white px-4 font-semibold text-[#10243f] transition-colors hover:border-[#2563eb] hover:text-[#2563eb]"
             >
               <User className="h-4 w-4" />
-              <span>{t.login}</span>
+              <span>{currentUser?.name || t.login}</span>
             </button>
           </div>
         </div>
@@ -514,6 +694,151 @@ export default function App() {
 
         {activeView === 'history' ? <HistorySection t={t} onStartComparison={showCompare} /> : null}
       </main>
+
+      {isLoginOpen ? (
+        <LoginModal
+          t={t}
+          currentUser={currentUser}
+          googleClientId={googleClientId}
+          isGoogleReady={isGoogleReady}
+          googleError={googleError}
+          googleButtonRef={googleButtonRef}
+          onClose={closeLogin}
+          onLogout={handleLogout}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function parseGoogleCredential(credential: string) {
+  try {
+    const payload = credential.split('.')[1];
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const decodedPayload = decodeURIComponent(
+      window
+        .atob(base64)
+        .split('')
+        .map((character) => `%${`00${character.charCodeAt(0).toString(16)}`.slice(-2)}`)
+        .join(''),
+    );
+    const profile = JSON.parse(decodedPayload) as { name?: string; email?: string; picture?: string };
+
+    if (!profile.email) {
+      return null;
+    }
+
+    return profile;
+  } catch {
+    return null;
+  }
+}
+
+function LoginModal({
+  t,
+  currentUser,
+  googleClientId,
+  isGoogleReady,
+  googleError,
+  googleButtonRef,
+  onClose,
+  onLogout,
+}: {
+  t: (typeof copy)[Language];
+  currentUser: UserSession | null;
+  googleClientId?: string;
+  isGoogleReady: boolean;
+  googleError: string;
+  googleButtonRef: React.RefObject<HTMLDivElement>;
+  onClose: () => void;
+  onLogout: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#10243f]/40 px-5 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-2xl border border-[#dbe5f1] bg-white p-6 shadow-[0_28px_80px_rgba(15,35,65,0.22)]">
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#2563eb]">{t.account}</p>
+            <h2 className="text-2xl font-semibold text-[#10243f]">{t.loginTitle}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{t.loginCopy}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close login dialog"
+            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-[#dbe5f1] bg-white text-slate-500 transition-colors hover:border-[#2563eb] hover:text-[#2563eb]"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {currentUser ? (
+          <div className="mb-5 rounded-xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{t.loggedInAs}</p>
+            <div className="mt-3 flex items-center gap-3">
+              {currentUser.picture ? (
+                <img
+                  src={currentUser.picture}
+                  alt=""
+                  className="h-10 w-10 rounded-full border border-[#dbe5f1] bg-white"
+                />
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eff6ff] text-[#2563eb]">
+                  <User className="h-5 w-5" />
+                </div>
+              )}
+              <div>
+                <p className="font-semibold text-[#10243f]">{currentUser.name}</p>
+                <p className="mt-1 text-sm text-slate-500">{currentUser.email}</p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="space-y-4">
+          {googleClientId ? (
+            <div className="min-h-11">
+              {isGoogleReady ? (
+                <div ref={googleButtonRef} className="flex justify-center" />
+              ) : (
+                <div className="rounded-lg border border-[#dbe5f1] bg-[#f8fbff] px-4 py-3 text-center text-sm font-semibold text-slate-500">
+                  {t.googleLoginLoading}
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
+              {t.googleLoginUnavailable}
+            </p>
+          )}
+
+          {googleError ? <p className="text-sm font-semibold text-rose-600">{googleError}</p> : null}
+
+          {currentUser ? (
+            <Button
+              type="button"
+              variant="outlined"
+              onClick={onLogout}
+              fullWidth
+              sx={{
+                py: 1.25,
+                borderColor: '#c8d7eb',
+                borderRadius: '10px',
+                color: '#1e3a5f',
+                cursor: 'pointer',
+                fontWeight: 700,
+                textTransform: 'none',
+                '&:hover': {
+                  borderColor: '#2563eb',
+                  backgroundColor: '#eff6ff',
+                },
+              }}
+            >
+              {t.logout}
+            </Button>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
