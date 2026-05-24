@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
+  Download,
   FileSearch,
   History,
   Layers3,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@mui/material';
 import Logo from './components/Logo';
+import supabase from './supabase';
 
 type ActiveView = 'home' | 'compare' | 'analyzing' | 'results' | 'history';
 type Language = 'en' | 'ko' | 'ja';
@@ -20,46 +22,11 @@ type UserSession = {
   name: string;
   email: string;
   picture?: string;
-  provider: 'google';
+  provider: 'google' | 'email';
 };
 
 const authStorageKey = 'quotewise.user';
-const googleScriptId = 'google-identity-services';
-const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
-
-type GoogleCredentialResponse = {
-  credential?: string;
-};
-
-type GoogleIdentityApi = {
-  accounts: {
-    id: {
-      initialize: (config: {
-        client_id: string;
-        callback: (response: GoogleCredentialResponse) => void;
-        ux_mode?: 'popup' | 'redirect';
-      }) => void;
-      renderButton: (
-        parent: HTMLElement,
-        options: {
-          theme?: 'outline' | 'filled_blue' | 'filled_black';
-          size?: 'large' | 'medium' | 'small';
-          type?: 'standard' | 'icon';
-          shape?: 'rectangular' | 'pill' | 'circle' | 'square';
-          text?: 'signin_with' | 'signup_with' | 'continue_with' | 'signin';
-          width?: number;
-        },
-      ) => void;
-      disableAutoSelect: () => void;
-    };
-  };
-};
-
-declare global {
-  interface Window {
-    google?: GoogleIdentityApi;
-  }
-}
+const supabaseClient = supabase;
 
 const languages: Array<{ code: Language; label: string; short: string }> = [
   { code: 'en', label: 'English', short: 'EN' },
@@ -69,6 +36,7 @@ const languages: Array<{ code: Language; label: string; short: string }> = [
 
 const copy = {
   en: {
+    home: 'Home',
     compare: 'Compare',
     history: 'History',
     eyebrow: 'Procurement intelligence',
@@ -105,6 +73,10 @@ const copy = {
     onlyInB: 'Only in B',
     summary: 'Summary',
     newComparison: 'New comparison',
+    reportTitle: 'Detailed analysis report',
+    reportCopy: 'Download a PDF-ready report with the recommendation, item comparison, coverage gaps, and pricing-basis notes.',
+    reportDownload: 'Download PDF',
+    reportPreparedBy: 'Prepared by QuoteWise',
     pdfError: 'Only PDF files can be uploaded.',
     login: 'Log in',
     account: 'Account',
@@ -112,9 +84,19 @@ const copy = {
     loginCopy: 'Sign in with Google to save and revisit your quotation comparisons.',
     logout: 'Log out',
     loggedInAs: 'Logged in as',
-    googleLoginUnavailable: 'Add VITE_GOOGLE_CLIENT_ID to enable Google login.',
+    googleLoginUnavailable: 'Add Supabase settings and enable the Google provider to use Google login.',
     googleLoginLoading: 'Loading Google sign-in...',
     googleLoginError: 'Google login could not be completed. Please try again.',
+    emailLoginTitle: 'Or use email',
+    emailLabel: 'Email',
+    emailPlaceholder: 'you@company.com',
+    passwordLabel: 'Password',
+    passwordPlaceholder: 'At least 6 characters',
+    emailLoginSubmit: 'Log in with email',
+    emailSignupSubmit: 'Create account',
+    emailAuthUnavailable: 'Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to enable email login.',
+    emailAuthSuccess: 'Check your email to confirm your account.',
+    emailAuthError: 'Email authentication failed. Please check your information and try again.',
     historyTitle: 'History is coming soon',
     historyCopy: 'Your previous comparison reports will appear here once project storage is connected.',
     insightItems: [
@@ -140,6 +122,7 @@ const copy = {
     ],
   },
   ko: {
+    home: '홈',
     compare: '비교',
     history: '기록',
     eyebrow: '구매 의사결정 인텔리전스',
@@ -176,6 +159,10 @@ const copy = {
     onlyInB: 'B에만 있음',
     summary: '요약',
     newComparison: '새 비교 시작',
+    reportTitle: '상세 분석 리포트',
+    reportCopy: '추천 결과, 항목별 비교, 포함 범위 차이, 비용 산정 기준 차이를 PDF 리포트로 저장하세요.',
+    reportDownload: 'PDF 다운로드',
+    reportPreparedBy: 'QuoteWise 분석 리포트',
     pdfError: 'PDF 파일만 업로드할 수 있습니다.',
     login: '로그인',
     account: '계정',
@@ -183,9 +170,19 @@ const copy = {
     loginCopy: '다음 MVP 단계에서 비교 기록을 이어갈 수 있도록 Google 계정으로 로그인하세요.',
     logout: '로그아웃',
     loggedInAs: '로그인 계정',
-    googleLoginUnavailable: 'Google 로그인을 사용하려면 VITE_GOOGLE_CLIENT_ID를 추가하세요.',
+    googleLoginUnavailable: 'Google 로그인을 사용하려면 Supabase 설정과 Google provider를 활성화하세요.',
     googleLoginLoading: 'Google 로그인을 불러오는 중입니다...',
     googleLoginError: 'Google 로그인을 완료할 수 없습니다. 다시 시도하세요.',
+    emailLoginTitle: '또는 이메일 사용',
+    emailLabel: '이메일',
+    emailPlaceholder: 'you@company.com',
+    passwordLabel: '비밀번호',
+    passwordPlaceholder: '6자 이상',
+    emailLoginSubmit: '이메일로 로그인',
+    emailSignupSubmit: '계정 만들기',
+    emailAuthUnavailable: '이메일 로그인을 사용하려면 VITE_SUPABASE_URL과 VITE_SUPABASE_ANON_KEY를 추가하세요.',
+    emailAuthSuccess: '계정 확인을 위해 이메일을 확인하세요.',
+    emailAuthError: '이메일 인증에 실패했습니다. 입력 정보를 확인하고 다시 시도하세요.',
     historyTitle: '기록 기능은 준비 중입니다',
     historyCopy: '프로젝트 저장 기능이 연결되면 이전 비교 리포트가 이곳에 표시됩니다.',
     insightItems: [
@@ -211,6 +208,7 @@ const copy = {
     ],
   },
   ja: {
+    home: 'ホーム',
     compare: '比較',
     history: '履歴',
     eyebrow: '購買インテリジェンス',
@@ -247,6 +245,10 @@ const copy = {
     onlyInB: 'Bのみ',
     summary: '要約',
     newComparison: '新しい比較',
+    reportTitle: '詳細分析レポート',
+    reportCopy: '推奨結果、項目別比較、含まれる範囲の差、価格算定基準の違いをPDFレポートとして保存できます。',
+    reportDownload: 'PDFをダウンロード',
+    reportPreparedBy: 'QuoteWise分析レポート',
     pdfError: 'PDFファイルのみアップロードできます。',
     login: 'ログイン',
     account: 'アカウント',
@@ -254,9 +256,19 @@ const copy = {
     loginCopy: '次のMVP段階で比較履歴を利用できるよう、Googleアカウントでログインしてください。',
     logout: 'ログアウト',
     loggedInAs: 'ログイン中',
-    googleLoginUnavailable: 'Googleログインを有効にするには VITE_GOOGLE_CLIENT_ID を追加してください。',
+    googleLoginUnavailable: 'Googleログインを有効にするには Supabase 設定と Google provider を有効にしてください。',
     googleLoginLoading: 'Googleログインを読み込み中...',
     googleLoginError: 'Googleログインを完了できませんでした。もう一度お試しください。',
+    emailLoginTitle: 'またはメールを使用',
+    emailLabel: 'メール',
+    emailPlaceholder: 'you@company.com',
+    passwordLabel: 'パスワード',
+    passwordPlaceholder: '6文字以上',
+    emailLoginSubmit: 'メールでログイン',
+    emailSignupSubmit: 'アカウント作成',
+    emailAuthUnavailable: 'メールログインを有効にするには VITE_SUPABASE_URL と VITE_SUPABASE_ANON_KEY を追加してください。',
+    emailAuthSuccess: 'アカウント確認のためメールをご確認ください。',
+    emailAuthError: 'メール認証に失敗しました。入力内容を確認してもう一度お試しください。',
     historyTitle: '履歴機能は準備中です',
     historyCopy: 'プロジェクト保存機能が接続されると、過去の比較レポートがここに表示されます。',
     insightItems: [
@@ -363,10 +375,36 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState('');
   const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [isGoogleReady, setIsGoogleReady] = useState(Boolean(window.google));
   const [googleError, setGoogleError] = useState('');
-  const googleButtonRef = useRef<HTMLDivElement | null>(null);
+  const [isGoogleAuthLoading, setIsGoogleAuthLoading] = useState(false);
+  const [emailAuthEmail, setEmailAuthEmail] = useState('');
+  const [emailAuthPassword, setEmailAuthPassword] = useState('');
+  const [emailAuthError, setEmailAuthError] = useState('');
+  const [emailAuthMessage, setEmailAuthMessage] = useState('');
+  const [isEmailAuthLoading, setIsEmailAuthLoading] = useState(false);
   const t = copy[language];
+
+  useEffect(() => {
+    if (!supabaseClient) {
+      return undefined;
+    }
+
+    void supabaseClient.auth.getSession().then(({ data }) => {
+      if (data.session?.user.email) {
+        setCurrentUser(createSupabaseUserSession(data.session.user));
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+      if (session?.user.email) {
+        setCurrentUser(createSupabaseUserSession(session.user));
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     const savedUser = window.localStorage.getItem(authStorageKey);
@@ -388,50 +426,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!googleClientId || window.google) {
-      setIsGoogleReady(Boolean(window.google));
-      return;
-    }
-
-    const existingScript = document.getElementById(googleScriptId) as HTMLScriptElement | null;
-
-    if (existingScript) {
-      existingScript.addEventListener('load', () => setIsGoogleReady(true), { once: true });
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.id = googleScriptId;
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => setIsGoogleReady(true);
-    script.onerror = () => setGoogleError(t.googleLoginError);
-    document.head.appendChild(script);
-  }, [t.googleLoginError]);
-
-  useEffect(() => {
-    if (!isLoginOpen || !isGoogleReady || !googleClientId || !window.google || !googleButtonRef.current) {
-      return;
-    }
-
-    googleButtonRef.current.innerHTML = '';
-    window.google.accounts.id.initialize({
-      client_id: googleClientId,
-      callback: handleGoogleCredential,
-      ux_mode: 'popup',
-    });
-    window.google.accounts.id.renderButton(googleButtonRef.current, {
-      theme: 'outline',
-      size: 'large',
-      type: 'standard',
-      shape: 'rectangular',
-      text: 'continue_with',
-      width: 340,
-    });
-  }, [isLoginOpen, isGoogleReady]);
-
-  useEffect(() => {
     if (activeView !== 'analyzing') {
       return undefined;
     }
@@ -450,6 +444,12 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const showHome = () => {
+    setErrorMessage('');
+    setActiveView('home');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const showHistory = () => {
     console.log('History view requested');
     setActiveView('history');
@@ -461,45 +461,114 @@ export default function App() {
     setLanguage(nextLanguage);
     setErrorMessage('');
     setGoogleError('');
+    setEmailAuthError('');
+    setEmailAuthMessage('');
   };
 
   const openLogin = () => {
     setGoogleError('');
+    setEmailAuthError('');
+    setEmailAuthMessage('');
     setIsLoginOpen(true);
   };
 
   const closeLogin = () => {
     setIsLoginOpen(false);
     setGoogleError('');
+    setEmailAuthError('');
+    setEmailAuthMessage('');
   };
 
-  const handleGoogleCredential = (response: GoogleCredentialResponse) => {
-    if (!response.credential) {
-      setGoogleError(t.googleLoginError);
+  const handleGoogleLogin = async () => {
+    if (!supabaseClient) {
+      setGoogleError(t.googleLoginUnavailable);
       return;
     }
 
-    const profile = parseGoogleCredential(response.credential);
-
-    if (!profile) {
-      setGoogleError(t.googleLoginError);
-      return;
-    }
-
-    const nextUser = {
-      name: profile.name || profile.email,
-      email: profile.email,
-      picture: profile.picture,
-      provider: 'google' as const,
-    };
-    setCurrentUser(nextUser);
-    window.localStorage.setItem(authStorageKey, JSON.stringify(nextUser));
-    setIsLoginOpen(false);
+    setIsGoogleAuthLoading(true);
     setGoogleError('');
+
+    const { error } = await supabaseClient.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
+    });
+
+    setIsGoogleAuthLoading(false);
+
+    if (error) {
+      setGoogleError(error.message || t.googleLoginError);
+    }
   };
 
-  const handleLogout = () => {
-    window.google?.accounts.id.disableAutoSelect();
+  const handleEmailLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!supabaseClient) {
+      setEmailAuthError(t.emailAuthUnavailable);
+      return;
+    }
+
+    setIsEmailAuthLoading(true);
+    setEmailAuthError('');
+    setEmailAuthMessage('');
+
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+      email: emailAuthEmail.trim(),
+      password: emailAuthPassword,
+    });
+
+    setIsEmailAuthLoading(false);
+
+    if (error || !data.user?.email) {
+      setEmailAuthError(error?.message || t.emailAuthError);
+      return;
+    }
+
+    setCurrentUser(createSupabaseUserSession(data.user));
+    window.localStorage.removeItem(authStorageKey);
+    setIsLoginOpen(false);
+  };
+
+  const handleEmailSignup = async () => {
+    if (!supabaseClient) {
+      setEmailAuthError(t.emailAuthUnavailable);
+      return;
+    }
+
+    setIsEmailAuthLoading(true);
+    setEmailAuthError('');
+    setEmailAuthMessage('');
+
+    const { data, error } = await supabaseClient.auth.signUp({
+      email: emailAuthEmail.trim(),
+      password: emailAuthPassword,
+    });
+
+    setIsEmailAuthLoading(false);
+
+    if (error) {
+      setEmailAuthError(error.message || t.emailAuthError);
+      return;
+    }
+
+    if (data.session && data.user?.email) {
+      setCurrentUser(createSupabaseUserSession(data.user));
+      window.localStorage.removeItem(authStorageKey);
+      setIsLoginOpen(false);
+      return;
+    }
+
+    setEmailAuthMessage(t.emailAuthSuccess);
+  };
+
+  const handleLogout = async () => {
+    await supabaseClient?.auth.signOut();
     setCurrentUser(null);
     window.localStorage.removeItem(authStorageKey);
     setIsLoginOpen(false);
@@ -542,14 +611,25 @@ export default function App() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 md:px-8">
           <button
             type="button"
-            onClick={() => setActiveView('home')}
+            onClick={showHome}
             className="flex cursor-pointer items-center border-0 bg-transparent p-0"
             aria-label="Go to QuoteWise home"
           >
             <Logo className="h-14 w-auto" />
           </button>
 
-          <nav className="hidden items-center gap-9 md:flex">
+          <nav className="hidden items-center gap-8 md:flex">
+            <button
+              type="button"
+              onClick={showHome}
+              className={`relative inline-flex h-10 cursor-pointer items-center border-0 bg-transparent px-0 text-sm font-bold tracking-[0.01em] transition-colors after:absolute after:-bottom-1 after:left-0 after:h-0.5 after:rounded-full after:bg-[#2563eb] after:transition-all ${
+                activeView === 'home'
+                  ? 'text-[#1e3a5f] after:w-full'
+                  : 'text-slate-500 after:w-0 hover:text-[#1e3a5f] hover:after:w-full'
+              }`}
+            >
+              {t.home}
+            </button>
             <button
               type="button"
               onClick={showCompare}
@@ -699,10 +779,20 @@ export default function App() {
         <LoginModal
           t={t}
           currentUser={currentUser}
-          googleClientId={googleClientId}
-          isGoogleReady={isGoogleReady}
+          isGoogleAuthAvailable={Boolean(supabaseClient)}
+          isGoogleLoading={isGoogleAuthLoading}
           googleError={googleError}
-          googleButtonRef={googleButtonRef}
+          onGoogleLogin={handleGoogleLogin}
+          isEmailAuthAvailable={Boolean(supabaseClient)}
+          email={emailAuthEmail}
+          password={emailAuthPassword}
+          emailError={emailAuthError}
+          emailMessage={emailAuthMessage}
+          isEmailLoading={isEmailAuthLoading}
+          onEmailChange={setEmailAuthEmail}
+          onPasswordChange={setEmailAuthPassword}
+          onEmailLogin={handleEmailLogin}
+          onEmailSignup={handleEmailSignup}
           onClose={closeLogin}
           onLogout={handleLogout}
         />
@@ -711,47 +801,68 @@ export default function App() {
   );
 }
 
-function parseGoogleCredential(credential: string) {
-  try {
-    const payload = credential.split('.')[1];
-    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const decodedPayload = decodeURIComponent(
-      window
-        .atob(base64)
-        .split('')
-        .map((character) => `%${`00${character.charCodeAt(0).toString(16)}`.slice(-2)}`)
-        .join(''),
-    );
-    const profile = JSON.parse(decodedPayload) as { name?: string; email?: string; picture?: string };
+function createSupabaseUserSession(user: { email?: string; app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown> }): UserSession {
+  const email = user.email || '';
+  const provider = user.app_metadata?.provider === 'google' ? 'google' : 'email';
+  const name =
+    typeof user.user_metadata?.full_name === 'string'
+      ? user.user_metadata.full_name
+      : typeof user.user_metadata?.name === 'string'
+        ? user.user_metadata.name
+        : email.split('@')[0] || email;
+  const picture =
+    typeof user.user_metadata?.avatar_url === 'string'
+      ? user.user_metadata.avatar_url
+      : typeof user.user_metadata?.picture === 'string'
+        ? user.user_metadata.picture
+        : undefined;
 
-    if (!profile.email) {
-      return null;
-    }
-
-    return profile;
-  } catch {
-    return null;
-  }
+  return {
+    name,
+    email,
+    picture,
+    provider,
+  };
 }
 
 function LoginModal({
   t,
   currentUser,
-  googleClientId,
-  isGoogleReady,
+  isGoogleAuthAvailable,
+  isGoogleLoading,
   googleError,
-  googleButtonRef,
+  onGoogleLogin,
+  isEmailAuthAvailable,
+  email,
+  password,
+  emailError,
+  emailMessage,
+  isEmailLoading,
+  onEmailChange,
+  onPasswordChange,
+  onEmailLogin,
+  onEmailSignup,
   onClose,
   onLogout,
 }: {
   t: (typeof copy)[Language];
   currentUser: UserSession | null;
-  googleClientId?: string;
-  isGoogleReady: boolean;
+  isGoogleAuthAvailable: boolean;
+  isGoogleLoading: boolean;
   googleError: string;
-  googleButtonRef: React.RefObject<HTMLDivElement>;
+  onGoogleLogin: () => void;
+  isEmailAuthAvailable: boolean;
+  email: string;
+  password: string;
+  emailError: string;
+  emailMessage: string;
+  isEmailLoading: boolean;
+  onEmailChange: (value: string) => void;
+  onPasswordChange: (value: string) => void;
+  onEmailLogin: (event: React.FormEvent<HTMLFormElement>) => void;
+  onEmailSignup: () => void;
   onClose: () => void;
-  onLogout: () => void;
+  onLogout: () => void | Promise<void>;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#10243f]/40 px-5 backdrop-blur-sm">
@@ -796,16 +907,30 @@ function LoginModal({
         ) : null}
 
         <div className="space-y-4">
-          {googleClientId ? (
-            <div className="min-h-11">
-              {isGoogleReady ? (
-                <div ref={googleButtonRef} className="flex justify-center" />
-              ) : (
-                <div className="rounded-lg border border-[#dbe5f1] bg-[#f8fbff] px-4 py-3 text-center text-sm font-semibold text-slate-500">
-                  {t.googleLoginLoading}
-                </div>
-              )}
-            </div>
+          {isGoogleAuthAvailable ? (
+            <Button
+              type="button"
+              variant="outlined"
+              fullWidth
+              disabled={isGoogleLoading}
+              onClick={onGoogleLogin}
+              startIcon={<GoogleLogo />}
+              sx={{
+                py: 1.25,
+                borderColor: '#c8d7eb',
+                borderRadius: '10px',
+                color: '#1e3a5f',
+                cursor: isGoogleLoading ? 'not-allowed' : 'pointer',
+                fontWeight: 700,
+                textTransform: 'none',
+                '&:hover': {
+                  borderColor: '#2563eb',
+                  backgroundColor: '#eff6ff',
+                },
+              }}
+            >
+              {isGoogleLoading ? t.googleLoginLoading : t.loginTitle}
+            </Button>
           ) : (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
               {t.googleLoginUnavailable}
@@ -813,6 +938,86 @@ function LoginModal({
           )}
 
           {googleError ? <p className="text-sm font-semibold text-rose-600">{googleError}</p> : null}
+
+          <div className="mt-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-[#dbe5f1]" />
+            <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">{t.emailLoginTitle}</span>
+            <div className="h-px flex-1 bg-[#dbe5f1]" />
+          </div>
+
+          {isEmailAuthAvailable ? (
+            <form onSubmit={onEmailLogin} className="space-y-3">
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold text-[#10243f]">{t.emailLabel}</span>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => onEmailChange(event.target.value)}
+                  placeholder={t.emailPlaceholder}
+                  className="h-11 w-full rounded-lg border border-[#c8d7eb] bg-white px-4 text-sm font-medium text-[#10243f] outline-none transition-colors placeholder:text-slate-400 focus:border-[#2563eb]"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold text-[#10243f]">{t.passwordLabel}</span>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => onPasswordChange(event.target.value)}
+                  placeholder={t.passwordPlaceholder}
+                  className="h-11 w-full rounded-lg border border-[#c8d7eb] bg-white px-4 text-sm font-medium text-[#10243f] outline-none transition-colors placeholder:text-slate-400 focus:border-[#2563eb]"
+                />
+              </label>
+              {emailError ? <p className="text-sm font-semibold text-rose-600">{emailError}</p> : null}
+              {emailMessage ? <p className="text-sm font-semibold text-emerald-600">{emailMessage}</p> : null}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Button
+                  type="submit"
+                  variant="contained"
+                  disabled={isEmailLoading}
+                  sx={{
+                    py: 1.15,
+                    backgroundColor: '#1e3a5f',
+                    borderRadius: '10px',
+                    cursor: isEmailLoading ? 'not-allowed' : 'pointer',
+                    fontWeight: 700,
+                    textTransform: 'none',
+                    '&:hover': { backgroundColor: '#2563eb' },
+                    '&.Mui-disabled': {
+                      backgroundColor: '#cbd5e1',
+                      color: '#ffffff',
+                    },
+                  }}
+                >
+                  {t.emailLoginSubmit}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outlined"
+                  disabled={isEmailLoading}
+                  onClick={onEmailSignup}
+                  sx={{
+                    py: 1.15,
+                    borderColor: '#c8d7eb',
+                    borderRadius: '10px',
+                    color: '#1e3a5f',
+                    cursor: isEmailLoading ? 'not-allowed' : 'pointer',
+                    fontWeight: 700,
+                    textTransform: 'none',
+                    '&:hover': {
+                      borderColor: '#2563eb',
+                      backgroundColor: '#eff6ff',
+                    },
+                  }}
+                >
+                  {t.emailSignupSubmit}
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
+              {t.emailAuthUnavailable}
+            </p>
+          )}
 
           {currentUser ? (
             <Button
@@ -840,6 +1045,29 @@ function LoginModal({
         </div>
       </div>
     </div>
+  );
+}
+
+function GoogleLogo() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4">
+      <path
+        fill="#4285F4"
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.84z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06L5.84 9.9C6.71 7.3 9.14 5.38 12 5.38z"
+      />
+    </svg>
   );
 }
 
@@ -1045,6 +1273,10 @@ function ResultsSection({
   file2: File | null;
   onNewComparison: () => void;
 }) {
+  const handleDownloadReport = () => {
+    downloadAnalysisReport(t, file1, file2);
+  };
+
   return (
     <section className="mx-auto max-w-7xl px-5 py-12 md:px-8 md:py-16">
       <div className="mb-8 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
@@ -1134,6 +1366,30 @@ function ResultsSection({
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">{t.recommendation}</p>
             <p className="mt-2 text-lg font-bold text-[#1e3a5f]">{t.recommendationValue}</p>
           </div>
+
+          <div className="mt-5 rounded-xl border border-[#dbe5f1] bg-white p-5">
+            <h3 className="text-base font-semibold text-[#10243f]">{t.reportTitle}</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{t.reportCopy}</p>
+            <Button
+              type="button"
+              variant="contained"
+              fullWidth
+              onClick={handleDownloadReport}
+              startIcon={<Download className="h-4 w-4" />}
+              sx={{
+                mt: 3,
+                py: 1.25,
+                backgroundColor: '#1e3a5f',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                fontWeight: 700,
+                textTransform: 'none',
+                '&:hover': { backgroundColor: '#2563eb' },
+              }}
+            >
+              {t.reportDownload}
+            </Button>
+          </div>
         </aside>
       </div>
     </section>
@@ -1146,6 +1402,218 @@ function QuoteValue({ value }: { value: string }) {
   }
 
   return <div className="text-right font-semibold text-slate-700">{value}</div>;
+}
+
+function downloadAnalysisReport(t: (typeof copy)[Language], file1: File | null, file2: File | null) {
+  const reportWindow = window.open('', '_blank', 'noopener,noreferrer,width=960,height=1200');
+
+  if (!reportWindow) {
+    return;
+  }
+
+  const quotePair = `${file1?.name || t.selectedFirst} vs ${file2?.name || t.selectedSecond}`;
+  const rows = resultRows
+    .map(
+      (row) => `
+        <tr>
+          <td>
+            <strong>${escapeHtml(row.item)}</strong>
+            <span>${escapeHtml(row.note)}</span>
+          </td>
+          <td>${escapeHtml(row.quoteA === 'Not included' ? '-' : row.quoteA)}</td>
+          <td>${escapeHtml(row.quoteB === 'Not included' ? '-' : row.quoteB)}</td>
+          <td>${escapeHtml(getDeltaValue(row, t))}</td>
+        </tr>
+      `,
+    )
+    .join('');
+  const insights = t.insightItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+
+  reportWindow.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>QuoteWise Analysis Report</title>
+        <style>
+          @page { margin: 24mm; }
+          * { box-sizing: border-box; }
+          body {
+            margin: 0;
+            color: #10243f;
+            font-family: Inter, Arial, sans-serif;
+            background: #ffffff;
+          }
+          .report {
+            max-width: 920px;
+            margin: 0 auto;
+            padding: 48px;
+          }
+          .eyebrow {
+            color: #2563eb;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+          }
+          h1 {
+            margin: 12px 0 16px;
+            font-size: 36px;
+            line-height: 1.15;
+          }
+          .lead {
+            max-width: 760px;
+            color: #475569;
+            font-size: 16px;
+            line-height: 1.7;
+          }
+          .meta {
+            margin: 28px 0;
+            padding: 18px 20px;
+            border: 1px solid #dbe5f1;
+            border-radius: 12px;
+            background: #f8fbff;
+            color: #475569;
+            font-size: 14px;
+          }
+          .metrics {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            margin: 28px 0;
+          }
+          .metric {
+            padding: 18px;
+            border: 1px solid #dbe5f1;
+            border-radius: 12px;
+          }
+          .metric span {
+            display: block;
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+          }
+          .metric strong {
+            display: block;
+            margin-top: 10px;
+            font-size: 26px;
+          }
+          h2 {
+            margin: 34px 0 14px;
+            font-size: 20px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #dbe5f1;
+            border-radius: 12px;
+            overflow: hidden;
+          }
+          th, td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #e7edf5;
+            text-align: right;
+            vertical-align: top;
+            font-size: 14px;
+          }
+          th:first-child, td:first-child {
+            text-align: left;
+            width: 42%;
+          }
+          td span {
+            display: block;
+            margin-top: 6px;
+            color: #64748b;
+            font-size: 12px;
+            line-height: 1.5;
+          }
+          ul {
+            margin: 0;
+            padding-left: 22px;
+            color: #475569;
+            line-height: 1.8;
+          }
+          .recommendation {
+            margin-top: 28px;
+            padding: 18px 20px;
+            border: 1px solid #b8c9df;
+            border-radius: 12px;
+            background: #f8fbff;
+            font-weight: 800;
+          }
+          .actions {
+            margin-top: 32px;
+          }
+          .actions button {
+            border: 0;
+            border-radius: 10px;
+            background: #1e3a5f;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 800;
+            padding: 12px 18px;
+          }
+          @media print {
+            .actions { display: none; }
+            .report { padding: 0; }
+          }
+        </style>
+      </head>
+      <body>
+        <main class="report">
+          <div class="eyebrow">QuoteWise</div>
+          <h1>${escapeHtml(t.reportTitle)}</h1>
+          <p class="lead">${escapeHtml(t.resultsCopy)}</p>
+          <div class="meta">
+            <strong>${escapeHtml(t.reportPreparedBy)}</strong><br />
+            ${escapeHtml(quotePair)}
+          </div>
+          <section class="metrics">
+            <div class="metric"><span>${escapeHtml(t.totalSavings)}</span><strong>$190</strong></div>
+            <div class="metric"><span>${escapeHtml(t.recommendedVendor)}</span><strong>${escapeHtml(t.quoteB)}</strong></div>
+            <div class="metric"><span>${escapeHtml(t.coverageGaps)}</span><strong>2</strong></div>
+          </section>
+          <h2>${escapeHtml(t.summary)}</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>${escapeHtml(t.previewHeaders[0])}</th>
+                <th>${escapeHtml(t.quoteA)}</th>
+                <th>${escapeHtml(t.quoteB)}</th>
+                <th>${escapeHtml(t.delta)}</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+          <h2>${escapeHtml(t.keyInsights)}</h2>
+          <ul>${insights}</ul>
+          <div class="recommendation">${escapeHtml(t.recommendation)}: ${escapeHtml(t.recommendationValue)}</div>
+          <div class="actions">
+            <button onclick="window.print()">${escapeHtml(t.reportDownload)}</button>
+          </div>
+        </main>
+        <script>
+          window.addEventListener('load', () => {
+            window.focus();
+            window.print();
+          });
+        </script>
+      </body>
+    </html>
+  `);
+  reportWindow.document.close();
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 function getDeltaValue(row: (typeof resultRows)[number], t: (typeof copy)[Language]) {
