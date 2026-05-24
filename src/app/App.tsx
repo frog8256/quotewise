@@ -389,22 +389,53 @@ export default function App() {
       return undefined;
     }
 
-    void supabaseClient.auth.getSession().then(({ data }) => {
-      if (data.session?.user.email) {
-        setCurrentUser(createSupabaseUserSession(data.session.user));
+    const cleanAuthUrl = () => {
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+    };
+
+    const applySession = (session: Awaited<ReturnType<typeof supabaseClient.auth.getSession>>['data']['session']) => {
+      if (session?.user.email) {
+        setCurrentUser(createSupabaseUserSession(session.user));
+        setIsLoginOpen(false);
       }
-    });
+    };
+
+    void (async () => {
+      const authParams = new URLSearchParams(window.location.search);
+      const authCode = authParams.get('code');
+      const authError = authParams.get('error_description') || authParams.get('error');
+
+      if (authError) {
+        setGoogleError(authError);
+        cleanAuthUrl();
+        return;
+      }
+
+      if (authCode) {
+        const { data, error } = await supabaseClient.auth.exchangeCodeForSession(authCode);
+
+        if (error) {
+          setGoogleError(error.message || t.googleLoginError);
+        } else {
+          applySession(data.session);
+        }
+
+        cleanAuthUrl();
+        return;
+      }
+
+      const { data } = await supabaseClient.auth.getSession();
+      applySession(data.session);
+    })();
 
     const {
       data: { subscription },
     } = supabaseClient.auth.onAuthStateChange((_event, session) => {
-      if (session?.user.email) {
-        setCurrentUser(createSupabaseUserSession(session.user));
-      }
+      applySession(session);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [t.googleLoginError]);
 
   useEffect(() => {
     const savedUser = window.localStorage.getItem(authStorageKey);
@@ -491,7 +522,7 @@ export default function App() {
     const { error } = await supabaseClient.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: `${window.location.origin}${window.location.pathname}`,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
