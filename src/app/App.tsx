@@ -907,8 +907,10 @@ function LoginModal({
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#2563eb]">{t.account}</p>
-            <h2 className="text-2xl font-semibold text-[#10243f]">{t.loginTitle}</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">{t.loginCopy}</p>
+            <h2 className="text-2xl font-semibold text-[#10243f]">{currentUser ? t.account : t.loginTitle}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              {currentUser ? currentUser.email : t.loginCopy}
+            </p>
           </div>
           <button
             type="button"
@@ -944,7 +946,31 @@ function LoginModal({
         ) : null}
 
         <div className="space-y-4">
-          {isGoogleAuthAvailable ? (
+          {currentUser ? (
+            <Button
+              type="button"
+              variant="outlined"
+              onClick={onLogout}
+              fullWidth
+              sx={{
+                py: 1.25,
+                borderColor: '#c8d7eb',
+                borderRadius: '10px',
+                color: '#1e3a5f',
+                cursor: 'pointer',
+                fontWeight: 700,
+                textTransform: 'none',
+                '&:hover': {
+                  borderColor: '#2563eb',
+                  backgroundColor: '#eff6ff',
+                },
+              }}
+            >
+              {t.logout}
+            </Button>
+          ) : (
+            <>
+              {isGoogleAuthAvailable ? (
             <Button
               type="button"
               variant="outlined"
@@ -1055,30 +1081,8 @@ function LoginModal({
               {t.emailAuthUnavailable}
             </p>
           )}
-
-          {currentUser ? (
-            <Button
-              type="button"
-              variant="outlined"
-              onClick={onLogout}
-              fullWidth
-              sx={{
-                py: 1.25,
-                borderColor: '#c8d7eb',
-                borderRadius: '10px',
-                color: '#1e3a5f',
-                cursor: 'pointer',
-                fontWeight: 700,
-                textTransform: 'none',
-                '&:hover': {
-                  borderColor: '#2563eb',
-                  backgroundColor: '#eff6ff',
-                },
-              }}
-            >
-              {t.logout}
-            </Button>
-          ) : null}
+            </>
+          )}
         </div>
       </div>
     </div>
