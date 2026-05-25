@@ -858,7 +858,7 @@ export default function App() {
     setIsLoginOpen(false);
   };
 
-  const handleEmailSignup = async () => {
+  const handleEmailSignup = async (metadata?: { displayName?: string; company?: string }) => {
     if (!supabaseClient) {
       setEmailAuthError(t.emailAuthUnavailable);
       return;
@@ -868,22 +868,22 @@ export default function App() {
     setEmailAuthError('');
     setEmailAuthMessage('');
 
-    const { data, error } = await supabaseClient.auth.signUp({
+    const { error } = await supabaseClient.auth.signInWithOtp({
       email: emailAuthEmail.trim(),
-      password: emailAuthPassword,
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: `${window.location.origin}${window.location.pathname}`,
+        data: {
+          full_name: metadata?.displayName?.trim() || undefined,
+          company: metadata?.company?.trim() || undefined,
+        },
+      },
     });
 
     setIsEmailAuthLoading(false);
 
     if (error) {
       setEmailAuthError(error.message || t.emailAuthError);
-      return;
-    }
-
-    if (data.session && data.user?.email) {
-      setCurrentUser(createSupabaseUserSession(data.user));
-      window.localStorage.removeItem(authStorageKey);
-      setIsLoginOpen(false);
       return;
     }
 
@@ -1212,7 +1212,7 @@ function LoginModal({
   onEmailChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
   onEmailLogin: (event: React.FormEvent<HTMLFormElement>) => void;
-  onEmailSignup: () => void;
+  onEmailSignup: (metadata?: { displayName?: string; company?: string }) => void;
   onTabChange: (tab: AccountTab) => void;
   onProfileChange: (field: keyof ProfileSettings, value: string) => void;
   onTermsOpen: () => void;
@@ -1524,7 +1524,7 @@ function LoginModal({
             <form
               onSubmit={(event) => {
                 event.preventDefault();
-                onEmailSignup();
+                onEmailSignup({ displayName: signupName, company: signupCompany });
               }}
               className="space-y-3"
             >
@@ -1555,16 +1555,6 @@ function LoginModal({
                   value={email}
                   onChange={(event) => onEmailChange(event.target.value)}
                   placeholder={t.emailPlaceholder}
-                  className="h-11 w-full rounded-lg border border-[#c8d7eb] bg-white px-4 text-sm font-medium text-[#10243f] outline-none transition-colors placeholder:text-slate-400 focus:border-[#2563eb]"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-2 block text-sm font-semibold text-[#10243f]">{t.passwordLabel}</span>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(event) => onPasswordChange(event.target.value)}
-                  placeholder={t.passwordPlaceholder}
                   className="h-11 w-full rounded-lg border border-[#c8d7eb] bg-white px-4 text-sm font-medium text-[#10243f] outline-none transition-colors placeholder:text-slate-400 focus:border-[#2563eb]"
                 />
               </label>
