@@ -1075,7 +1075,8 @@ function LoginModal({
   onLogout: () => void | Promise<void>;
 }) {
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
-  const isAuthDisabled = !hasAcceptedTerms || isGoogleLoading || isEmailLoading;
+  const isLoginDisabled = !hasAcceptedTerms || isGoogleLoading || isEmailLoading;
+  const isSignupDisabled = isEmailLoading;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#10243f]/40 px-5 backdrop-blur-sm">
@@ -1251,7 +1252,7 @@ function LoginModal({
               type="button"
               variant="outlined"
               fullWidth
-              disabled={isAuthDisabled}
+              disabled={isLoginDisabled}
               onClick={onGoogleLogin}
               startIcon={<GoogleLogo />}
               sx={{
@@ -1259,7 +1260,7 @@ function LoginModal({
                 borderColor: '#c8d7eb',
                 borderRadius: '10px',
                 color: '#1e3a5f',
-                cursor: isAuthDisabled ? 'not-allowed' : 'pointer',
+                cursor: isLoginDisabled ? 'not-allowed' : 'pointer',
                 fontWeight: 700,
                 textTransform: 'none',
                 '&:hover': {
@@ -1312,12 +1313,12 @@ function LoginModal({
                 <Button
                   type="submit"
                   variant="contained"
-                  disabled={isAuthDisabled}
+                  disabled={isLoginDisabled}
                   sx={{
                     py: 1.15,
                     backgroundColor: '#1e3a5f',
                     borderRadius: '10px',
-                    cursor: isAuthDisabled ? 'not-allowed' : 'pointer',
+                    cursor: isLoginDisabled ? 'not-allowed' : 'pointer',
                     fontWeight: 700,
                     textTransform: 'none',
                     '&:hover': { backgroundColor: '#2563eb' },
@@ -1332,14 +1333,14 @@ function LoginModal({
                 <Button
                   type="button"
                   variant="outlined"
-                  disabled={isAuthDisabled}
+                  disabled={isSignupDisabled}
                   onClick={onEmailSignup}
                   sx={{
                     py: 1.15,
                     borderColor: '#c8d7eb',
                     borderRadius: '10px',
                     color: '#1e3a5f',
-                    cursor: isAuthDisabled ? 'not-allowed' : 'pointer',
+                    cursor: isSignupDisabled ? 'not-allowed' : 'pointer',
                     fontWeight: 700,
                     textTransform: 'none',
                     '&:hover': {
