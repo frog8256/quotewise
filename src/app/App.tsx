@@ -19,6 +19,7 @@ import supabase from './supabase';
 
 type ActiveView = 'home' | 'compare' | 'analyzing' | 'results' | 'history';
 type Language = 'en' | 'ko' | 'ja';
+type AuthMode = 'login' | 'signup';
 type UserSession = {
   name: string;
   email: string;
@@ -339,7 +340,11 @@ const accountLabels = {
     historyPreviewCopy: 'Saved comparison reports will appear here after the history database is connected.',
     historyPreviewEmpty: 'No saved comparisons yet.',
     loginHeading: 'Login',
+    createAccountHeading: 'Create account',
+    createAccountCopy: 'Create a QuoteWise account to save profile details and prepare comparison history.',
     googleLoginSection: 'Continue with Google',
+    backToLogin: 'Back to login',
+    alreadyHaveAccount: 'Already have an account?',
     termsAgreement: 'I agree to the',
     termsLink: 'Terms of Service',
     termsAndPrivacy: 'and Privacy Policy.',
@@ -362,7 +367,11 @@ const accountLabels = {
     historyPreviewCopy: '히스토리 데이터베이스를 연결하면 저장된 비교 리포트가 여기에 표시됩니다.',
     historyPreviewEmpty: '아직 저장된 비교 기록이 없습니다.',
     loginHeading: '로그인',
+    createAccountHeading: '계정 만들기',
+    createAccountCopy: '프로필 정보와 비교 히스토리를 저장할 수 있도록 QuoteWise 계정을 만드세요.',
     googleLoginSection: 'Google로 계속하기',
+    backToLogin: '로그인으로 돌아가기',
+    alreadyHaveAccount: '이미 계정이 있나요?',
     termsAgreement: '다음에 동의합니다:',
     termsLink: '이용약관',
     termsAndPrivacy: '및 개인정보 처리방침',
@@ -385,7 +394,11 @@ const accountLabels = {
     historyPreviewCopy: '履歴データベースを接続すると、保存済みの比較レポートがここに表示されます。',
     historyPreviewEmpty: '保存された比較はまだありません。',
     loginHeading: 'ログイン',
+    createAccountHeading: 'アカウント作成',
+    createAccountCopy: 'プロフィール情報と比較履歴を保存できる QuoteWise アカウントを作成します。',
     googleLoginSection: 'Googleで続行',
+    backToLogin: 'ログインに戻る',
+    alreadyHaveAccount: 'すでにアカウントをお持ちですか？',
     termsAgreement: '以下に同意します:',
     termsLink: '利用規約',
     termsAndPrivacy: 'およびプライバシーポリシー',
@@ -1074,9 +1087,15 @@ function LoginModal({
   onClose: () => void;
   onLogout: () => void | Promise<void>;
 }) {
+  const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
+  const [signupName, setSignupName] = useState('');
+  const [signupCompany, setSignupCompany] = useState('');
   const isLoginDisabled = !hasAcceptedTerms || isGoogleLoading || isEmailLoading;
-  const isSignupDisabled = isEmailLoading;
+  const isSignupDisabled = !hasAcceptedTerms || isEmailLoading;
+  const authHeading =
+    currentUser ? t.account : authMode === 'signup' ? labels.createAccountHeading : labels.loginHeading;
+  const authCopy = currentUser ? currentUser.email : authMode === 'signup' ? labels.createAccountCopy : t.loginCopy;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#10243f]/40 px-5 backdrop-blur-sm">
@@ -1089,11 +1108,9 @@ function LoginModal({
           <div>
             <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#2563eb]">{t.account}</p>
             <h2 className="text-2xl font-semibold text-[#10243f]">
-              {currentUser ? t.account : labels.loginHeading}
+              {authHeading}
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              {currentUser ? currentUser.email : t.loginCopy}
-            </p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{authCopy}</p>
             {!currentUser ? (
               <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-[#dbe5f1] bg-[#f8fbff] px-3 py-3 text-[13px] leading-5 text-slate-600 sm:text-sm">
                 <input
@@ -1247,6 +1264,8 @@ function LoginModal({
             </Button>
           ) : (
             <>
+          {authMode === 'login' ? (
+            <>
               {isGoogleAuthAvailable ? (
             <Button
               type="button"
@@ -1333,14 +1352,17 @@ function LoginModal({
                 <Button
                   type="button"
                   variant="outlined"
-                  disabled={isSignupDisabled}
-                  onClick={onEmailSignup}
+                  disabled={isEmailLoading}
+                  onClick={() => {
+                    setAuthMode('signup');
+                    setHasAcceptedTerms(false);
+                  }}
                   sx={{
                     py: 1.15,
                     borderColor: '#c8d7eb',
                     borderRadius: '10px',
                     color: '#1e3a5f',
-                    cursor: isSignupDisabled ? 'not-allowed' : 'pointer',
+                    cursor: isEmailLoading ? 'not-allowed' : 'pointer',
                     fontWeight: 700,
                     textTransform: 'none',
                     '&:hover': {
@@ -1357,6 +1379,90 @@ function LoginModal({
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
               {t.emailAuthUnavailable}
             </p>
+          )}
+            </>
+          ) : (
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                onEmailSignup();
+              }}
+              className="space-y-3"
+            >
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold text-[#10243f]">{labels.displayName}</span>
+                <input
+                  type="text"
+                  value={signupName}
+                  onChange={(event) => setSignupName(event.target.value)}
+                  placeholder="Jane Procurement"
+                  className="h-11 w-full rounded-lg border border-[#c8d7eb] bg-white px-4 text-sm font-medium text-[#10243f] outline-none transition-colors placeholder:text-slate-400 focus:border-[#2563eb]"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold text-[#10243f]">{labels.company}</span>
+                <input
+                  type="text"
+                  value={signupCompany}
+                  onChange={(event) => setSignupCompany(event.target.value)}
+                  placeholder="Company name"
+                  className="h-11 w-full rounded-lg border border-[#c8d7eb] bg-white px-4 text-sm font-medium text-[#10243f] outline-none transition-colors placeholder:text-slate-400 focus:border-[#2563eb]"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold text-[#10243f]">{t.emailLabel}</span>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => onEmailChange(event.target.value)}
+                  placeholder={t.emailPlaceholder}
+                  className="h-11 w-full rounded-lg border border-[#c8d7eb] bg-white px-4 text-sm font-medium text-[#10243f] outline-none transition-colors placeholder:text-slate-400 focus:border-[#2563eb]"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold text-[#10243f]">{t.passwordLabel}</span>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => onPasswordChange(event.target.value)}
+                  placeholder={t.passwordPlaceholder}
+                  className="h-11 w-full rounded-lg border border-[#c8d7eb] bg-white px-4 text-sm font-medium text-[#10243f] outline-none transition-colors placeholder:text-slate-400 focus:border-[#2563eb]"
+                />
+              </label>
+              {emailError ? <p className="text-sm font-semibold text-rose-600">{emailError}</p> : null}
+              {emailMessage ? <p className="text-sm font-semibold text-emerald-600">{emailMessage}</p> : null}
+              <Button
+                type="submit"
+                variant="contained"
+                fullWidth
+                disabled={isSignupDisabled}
+                sx={{
+                  py: 1.15,
+                  backgroundColor: '#1e3a5f',
+                  borderRadius: '10px',
+                  cursor: isSignupDisabled ? 'not-allowed' : 'pointer',
+                  fontWeight: 700,
+                  textTransform: 'none',
+                  '&:hover': { backgroundColor: '#2563eb' },
+                  '&.Mui-disabled': {
+                    backgroundColor: '#cbd5e1',
+                    color: '#ffffff',
+                  },
+                }}
+              >
+                {t.emailSignupSubmit}
+              </Button>
+              <div className="flex items-center justify-center gap-2 text-sm text-slate-500">
+                <span>{labels.alreadyHaveAccount}</span>
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('login')}
+                  className="cursor-pointer font-bold text-[#2563eb] hover:text-[#1e3a5f]"
+                >
+                  {labels.backToLogin}
+                </button>
+              </div>
+            </form>
           )}
             </>
           )}
