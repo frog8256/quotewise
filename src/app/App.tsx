@@ -25,6 +25,7 @@ type UserSession = {
   email: string;
   picture?: string;
   provider: 'google' | 'email';
+  emailVerified: boolean;
 };
 type AccountTab = 'profile' | 'history';
 type ProfileSettings = {
@@ -139,6 +140,7 @@ const copy = {
     signInMethod: 'Sign-in method',
     accountStatus: 'Account status',
     accountStatusActive: 'Active',
+    accountStatusUnverified: 'Email verification required',
     personalInfo: 'Personal details',
     displayName: 'Display name',
     company: 'Company',
@@ -162,6 +164,7 @@ const copy = {
     emailSignupSubmit: 'Create account',
     emailAuthUnavailable: 'Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to enable email login.',
     emailAuthSuccess: 'Check your email to confirm your account.',
+    emailVerificationRequired: 'Please verify your email to use history and PDF downloads.',
     emailAuthError: 'Email authentication failed. Please check your information and try again.',
     historyTitle: 'History is coming soon',
     historyCopy: 'Your previous comparison reports will appear here once project storage is connected.',
@@ -250,6 +253,7 @@ const copy = {
     emailSignupSubmit: '계정 만들기',
     emailAuthUnavailable: '이메일 로그인을 사용하려면 VITE_SUPABASE_URL과 VITE_SUPABASE_ANON_KEY를 추가하세요.',
     emailAuthSuccess: '계정 확인을 위해 이메일을 확인하세요.',
+    emailVerificationRequired: '히스토리와 PDF 다운로드를 사용하려면 이메일 인증을 완료해 주세요.',
     emailAuthError: '이메일 인증에 실패했습니다. 입력 정보를 확인하고 다시 시도하세요.',
     historyTitle: '기록 기능은 준비 중입니다',
     historyCopy: '프로젝트 저장 기능이 연결되면 이전 비교 리포트가 이곳에 표시됩니다.',
@@ -338,6 +342,7 @@ const copy = {
     emailSignupSubmit: 'アカウント作成',
     emailAuthUnavailable: 'メールログインを有効にするには VITE_SUPABASE_URL と VITE_SUPABASE_ANON_KEY を追加してください。',
     emailAuthSuccess: 'アカウント確認のためメールをご確認ください。',
+    emailVerificationRequired: '履歴とPDFダウンロードを使用するには、メール認証を完了してください。',
     emailAuthError: 'メール認証に失敗しました。入力内容を確認してもう一度お試しください。',
     historyTitle: '履歴機能は準備中です',
     historyCopy: 'プロジェクト保存機能が接続されると、過去の比較レポートがここに表示されます。',
@@ -426,6 +431,7 @@ const copy = {
     emailSignupSubmit: '创建账户',
     emailAuthUnavailable: '请添加 VITE_SUPABASE_URL 和 VITE_SUPABASE_ANON_KEY 以启用邮箱登录。',
     emailAuthSuccess: '请查看邮箱以确认你的账户。',
+    emailVerificationRequired: '请先完成邮箱验证，才能使用历史记录和 PDF 下载。',
     emailAuthError: '邮箱认证失败。请检查信息后重试。',
     historyTitle: '历史功能即将推出',
     historyCopy: '连接项目存储后，你之前的比较报告会显示在这里。',
@@ -489,6 +495,7 @@ const accountLabels = {
     signInMethod: '로그인 방식',
     accountStatus: '계정 상태',
     accountStatusActive: '활성',
+    accountStatusUnverified: '이메일 인증 필요',
     personalInfo: '개인정보',
     displayName: '표시 이름',
     company: '회사',
@@ -516,6 +523,7 @@ const accountLabels = {
     signInMethod: 'ログイン方法',
     accountStatus: 'アカウント状態',
     accountStatusActive: '有効',
+    accountStatusUnverified: 'メール認証が必要です',
     personalInfo: '個人情報',
     displayName: '表示名',
     company: '会社',
@@ -543,6 +551,7 @@ const accountLabels = {
     signInMethod: '登录方式',
     accountStatus: '账户状态',
     accountStatusActive: '已启用',
+    accountStatusUnverified: '需要邮箱验证',
     personalInfo: '个人信息',
     displayName: '显示名称',
     company: '公司',
@@ -732,7 +741,7 @@ export default function App() {
     try {
       const parsedUser = JSON.parse(savedUser) as UserSession;
       if (parsedUser.provider === 'google' && parsedUser.name && parsedUser.email) {
-        setCurrentUser(parsedUser);
+        setCurrentUser({ ...parsedUser, emailVerified: parsedUser.emailVerified ?? true });
       } else {
         window.localStorage.removeItem(authStorageKey);
       }
@@ -808,7 +817,17 @@ export default function App() {
   };
 
   const showHistory = () => {
-    console.log('History view requested');
+    if (!currentUser) {
+      openLogin();
+      return;
+    }
+
+    if (!currentUser.emailVerified) {
+      setEmailAuthMessage(t.emailVerificationRequired);
+      setIsLoginOpen(true);
+      return;
+    }
+
     setActiveView('history');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -929,8 +948,15 @@ export default function App() {
     }
 
     if (data.user && data.session) {
-      setCurrentUser(createSupabaseUserSession(data.user));
-      setIsLoginOpen(false);
+      const signedUpUser = createSupabaseUserSession(data.user);
+
+      if (signedUpUser.emailVerified) {
+        setCurrentUser(signedUpUser);
+        setIsLoginOpen(false);
+        return;
+      }
+
+      setEmailAuthMessage(t.emailAuthSuccess);
       return;
     }
 
@@ -1191,6 +1217,16 @@ export default function App() {
             file1={file1}
             file2={file2}
             analysis={currentAnalysis}
+            currentUser={currentUser}
+            onRequireVerifiedEmail={() => {
+              if (!currentUser) {
+                openLogin();
+                return;
+              }
+
+              setEmailAuthMessage(t.emailVerificationRequired);
+              setIsLoginOpen(true);
+            }}
             onNewComparison={showCompare}
           />
         ) : null}
@@ -1232,7 +1268,12 @@ export default function App() {
   );
 }
 
-function createSupabaseUserSession(user: { email?: string; app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown> }): UserSession {
+function createSupabaseUserSession(user: {
+  email?: string;
+  email_confirmed_at?: string | null;
+  app_metadata?: Record<string, unknown>;
+  user_metadata?: Record<string, unknown>;
+}): UserSession {
   const email = user.email || '';
   const provider = user.app_metadata?.provider === 'google' ? 'google' : 'email';
   const name =
@@ -1253,6 +1294,7 @@ function createSupabaseUserSession(user: { email?: string; app_metadata?: Record
     email,
     picture,
     provider,
+    emailVerified: provider === 'google' || Boolean(user.email_confirmed_at),
   };
 }
 
@@ -1376,6 +1418,11 @@ function LoginModal({
 
         {currentUser ? (
           <div className="mb-5">
+            {!currentUser.emailVerified ? (
+              <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
+                {t.emailVerificationRequired}
+              </p>
+            ) : null}
             <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-[#dbe5f1] bg-[#f8fbff] p-1">
               {(['profile', 'history'] as AccountTab[]).map((tab) => (
                 <button
@@ -1429,8 +1476,14 @@ function LoginModal({
                       </div>
                       <div>
                         <dt className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{labels.accountStatus}</dt>
-                        <dd className="mt-1 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
-                          {labels.accountStatusActive}
+                        <dd
+                          className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${
+                            currentUser.emailVerified
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'bg-amber-50 text-amber-700'
+                          }`}
+                        >
+                          {currentUser.emailVerified ? labels.accountStatusActive : labels.accountStatusUnverified}
                         </dd>
                       </div>
                     </dl>
@@ -2466,6 +2519,8 @@ function ResultsSection({
   file1,
   file2,
   analysis,
+  currentUser,
+  onRequireVerifiedEmail,
   onNewComparison,
 }: {
   t: (typeof copy)[Language];
@@ -2473,6 +2528,8 @@ function ResultsSection({
   file1: File | null;
   file2: File | null;
   analysis: QuoteAnalysis | null;
+  currentUser: UserSession | null;
+  onRequireVerifiedEmail: () => void;
   onNewComparison: () => void;
 }) {
   const rows = analysis?.items.length
@@ -2502,6 +2559,11 @@ function ResultsSection({
     ? `${analysis.coverageGaps} items appear in only one quote`
     : 'Items appear in only one quote';
   const handleDownloadReport = () => {
+    if (!currentUser?.emailVerified) {
+      onRequireVerifiedEmail();
+      return;
+    }
+
     downloadAnalysisReport(t, file1, file2, analysis);
   };
 
@@ -2614,6 +2676,10 @@ function ResultsSection({
                 cursor: 'pointer',
                 fontWeight: 700,
                 textTransform: 'none',
+                '&.Mui-disabled': {
+                  backgroundColor: '#cbd5e1',
+                  color: '#ffffff',
+                },
                 '&:hover': { backgroundColor: '#2563eb' },
               }}
             >
