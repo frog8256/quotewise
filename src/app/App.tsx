@@ -33,6 +33,11 @@ type ProfileSettings = {
   role: string;
   phone: string;
 };
+type EmailSignupMetadata = {
+  displayName?: string;
+  company?: string;
+  password: string;
+};
 type CreateComparisonJobResponse = {
   jobId: string;
   guestAccessToken: string;
@@ -151,6 +156,8 @@ const copy = {
     emailPlaceholder: 'you@company.com',
     passwordLabel: 'Password',
     passwordPlaceholder: 'At least 6 characters',
+    confirmPasswordLabel: 'Confirm password',
+    passwordMismatch: 'Passwords do not match.',
     emailLoginSubmit: 'Log in with email',
     emailSignupSubmit: 'Create account',
     emailAuthUnavailable: 'Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to enable email login.',
@@ -237,6 +244,8 @@ const copy = {
     emailPlaceholder: 'you@company.com',
     passwordLabel: '비밀번호',
     passwordPlaceholder: '6자 이상',
+    confirmPasswordLabel: '비밀번호 확인',
+    passwordMismatch: '비밀번호가 일치하지 않습니다.',
     emailLoginSubmit: '이메일로 로그인',
     emailSignupSubmit: '계정 만들기',
     emailAuthUnavailable: '이메일 로그인을 사용하려면 VITE_SUPABASE_URL과 VITE_SUPABASE_ANON_KEY를 추가하세요.',
@@ -323,6 +332,8 @@ const copy = {
     emailPlaceholder: 'you@company.com',
     passwordLabel: 'パスワード',
     passwordPlaceholder: '6文字以上',
+    confirmPasswordLabel: 'パスワード確認',
+    passwordMismatch: 'パスワードが一致しません。',
     emailLoginSubmit: 'メールでログイン',
     emailSignupSubmit: 'アカウント作成',
     emailAuthUnavailable: 'メールログインを有効にするには VITE_SUPABASE_URL と VITE_SUPABASE_ANON_KEY を追加してください。',
@@ -409,6 +420,8 @@ const copy = {
     emailPlaceholder: 'you@company.com',
     passwordLabel: '密码',
     passwordPlaceholder: '至少 6 个字符',
+    confirmPasswordLabel: '确认密码',
+    passwordMismatch: '两次输入的密码不一致。',
     emailLoginSubmit: '使用邮箱登录',
     emailSignupSubmit: '创建账户',
     emailAuthUnavailable: '请添加 VITE_SUPABASE_URL 和 VITE_SUPABASE_ANON_KEY 以启用邮箱登录。',
@@ -886,7 +899,7 @@ export default function App() {
     setIsLoginOpen(false);
   };
 
-  const handleEmailSignup = async (metadata?: { displayName?: string; company?: string }) => {
+  const handleEmailSignup = async (metadata: EmailSignupMetadata) => {
     if (!supabaseClient) {
       setEmailAuthError(t.emailAuthUnavailable);
       return;
@@ -896,10 +909,10 @@ export default function App() {
     setEmailAuthError('');
     setEmailAuthMessage('');
 
-    const { error } = await supabaseClient.auth.signInWithOtp({
+    const { data, error } = await supabaseClient.auth.signUp({
       email: emailAuthEmail.trim(),
+      password: metadata.password,
       options: {
-        shouldCreateUser: true,
         emailRedirectTo: `${window.location.origin}${window.location.pathname}`,
         data: {
           full_name: metadata?.displayName?.trim() || undefined,
@@ -912,6 +925,12 @@ export default function App() {
 
     if (error) {
       setEmailAuthError(error.message || t.emailAuthError);
+      return;
+    }
+
+    if (data.user && data.session) {
+      setCurrentUser(createSupabaseUserSession(data.user));
+      setIsLoginOpen(false);
       return;
     }
 
@@ -1281,7 +1300,7 @@ function LoginModal({
   onEmailChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
   onEmailLogin: (event: React.FormEvent<HTMLFormElement>) => void;
-  onEmailSignup: (metadata?: { displayName?: string; company?: string }) => void;
+  onEmailSignup: (metadata: EmailSignupMetadata) => void;
   onTabChange: (tab: AccountTab) => void;
   onProfileChange: (field: keyof ProfileSettings, value: string) => void;
   onTermsOpen: () => void;
@@ -1292,8 +1311,16 @@ function LoginModal({
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
   const [signupName, setSignupName] = useState('');
   const [signupCompany, setSignupCompany] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
   const isLoginDisabled = isGoogleLoading || isEmailLoading;
-  const isSignupDisabled = !hasAcceptedTerms || !signupName.trim() || isEmailLoading;
+  const isSignupDisabled =
+    !hasAcceptedTerms ||
+    !signupName.trim() ||
+    !email.trim() ||
+    signupPassword.length < 6 ||
+    signupPassword !== signupConfirmPassword ||
+    isEmailLoading;
   const authHeading =
     currentUser ? t.account : authMode === 'signup' ? labels.createAccountHeading : labels.loginHeading;
   const authCopy = currentUser ? currentUser.email : authMode === 'signup' ? labels.createAccountCopy : t.loginCopy;
@@ -1564,6 +1591,8 @@ function LoginModal({
                   onClick={() => {
                     setAuthMode('signup');
                     setHasAcceptedTerms(false);
+                    setSignupPassword('');
+                    setSignupConfirmPassword('');
                   }}
                   sx={{
                     py: 1.15,
@@ -1593,7 +1622,7 @@ function LoginModal({
             <form
               onSubmit={(event) => {
                 event.preventDefault();
-                onEmailSignup({ displayName: signupName, company: signupCompany });
+                onEmailSignup({ displayName: signupName, company: signupCompany, password: signupPassword });
               }}
               className="space-y-3"
             >
@@ -1632,6 +1661,37 @@ function LoginModal({
                   className="h-11 w-full rounded-lg border border-[#c8d7eb] bg-white px-4 text-sm font-medium text-[#10243f] outline-none transition-colors placeholder:text-slate-400 focus:border-[#2563eb]"
                 />
               </label>
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold text-[#10243f]">
+                  {t.passwordLabel} <span className="text-rose-600">*</span>
+                </span>
+                <input
+                  type="password"
+                  value={signupPassword}
+                  onChange={(event) => setSignupPassword(event.target.value)}
+                  placeholder={t.passwordPlaceholder}
+                  required
+                  minLength={6}
+                  className="h-11 w-full rounded-lg border border-[#c8d7eb] bg-white px-4 text-sm font-medium text-[#10243f] outline-none transition-colors placeholder:text-slate-400 focus:border-[#2563eb]"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold text-[#10243f]">
+                  {t.confirmPasswordLabel} <span className="text-rose-600">*</span>
+                </span>
+                <input
+                  type="password"
+                  value={signupConfirmPassword}
+                  onChange={(event) => setSignupConfirmPassword(event.target.value)}
+                  placeholder={t.passwordPlaceholder}
+                  required
+                  minLength={6}
+                  className="h-11 w-full rounded-lg border border-[#c8d7eb] bg-white px-4 text-sm font-medium text-[#10243f] outline-none transition-colors placeholder:text-slate-400 focus:border-[#2563eb]"
+                />
+              </label>
+              {signupConfirmPassword && signupPassword !== signupConfirmPassword ? (
+                <p className="text-sm font-semibold text-rose-600">{t.passwordMismatch}</p>
+              ) : null}
               {emailError ? <p className="text-sm font-semibold text-rose-600">{emailError}</p> : null}
               {emailMessage ? <p className="text-sm font-semibold text-emerald-600">{emailMessage}</p> : null}
               <Button
