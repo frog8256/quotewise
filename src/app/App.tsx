@@ -1246,14 +1246,6 @@ function LoginModal({
             </Button>
           ) : (
             <>
-          <div className="flex items-center gap-3">
-            <div className="h-px flex-1 bg-[#dbe5f1]" />
-            <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-              {labels.googleLoginSection}
-            </span>
-            <div className="h-px flex-1 bg-[#dbe5f1]" />
-          </div>
-
               {isGoogleAuthAvailable ? (
             <Button
               type="button"
@@ -1276,7 +1268,7 @@ function LoginModal({
                 },
               }}
             >
-              {isGoogleLoading ? t.googleLoginLoading : labels.loginHeading}
+              {isGoogleLoading ? t.googleLoginLoading : labels.googleLoginSection}
             </Button>
           ) : (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
