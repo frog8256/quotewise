@@ -45,6 +45,13 @@ const languages: Array<{ code: Language; label: string; short: string }> = [
   { code: 'ja', label: '日本語', short: 'JA' },
 ];
 
+const orderedLanguages: Array<{ code: Language; label: string; short: string }> = [
+  { code: 'en', label: 'English', short: 'EN' },
+  { code: 'ko', label: '한국어', short: 'KO' },
+  { code: 'ja', label: '日本語', short: 'JA' },
+  { code: 'zh', label: '简体中文', short: 'ZH' },
+];
+
 const copy = {
   en: {
     home: 'Home',
@@ -990,7 +997,7 @@ export default function App() {
                 aria-label="Select language"
                 className="cursor-pointer rounded-md border border-transparent bg-transparent px-1 py-1 font-semibold text-slate-600 outline-none transition-colors hover:border-[#c8d7eb] focus:border-[#2563eb] focus:bg-white"
               >
-                {languages.map((option) => (
+                {orderedLanguages.map((option) => (
                   <option key={option.code} value={option.code}>
                     {option.short} · {option.label}
                   </option>
