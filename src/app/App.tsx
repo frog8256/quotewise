@@ -7,6 +7,7 @@ import {
   History,
   Layers3,
   Loader2,
+  Settings,
   Sparkles,
   Upload,
   User,
@@ -24,8 +25,16 @@ type UserSession = {
   picture?: string;
   provider: 'google' | 'email';
 };
+type AccountTab = 'profile' | 'history';
+type ProfileSettings = {
+  displayName: string;
+  company: string;
+  role: string;
+  phone: string;
+};
 
 const authStorageKey = 'quotewise.user';
+const profileStorageKey = 'quotewise.profile';
 const supabaseClient = supabase;
 
 const languages: Array<{ code: Language; label: string; short: string }> = [
@@ -84,6 +93,22 @@ const copy = {
     loginCopy: 'Sign in with Google to save and revisit your quotation comparisons.',
     logout: 'Log out',
     loggedInAs: 'Logged in as',
+    profileTab: 'Profile',
+    accountHistoryTab: 'History',
+    accountInfo: 'Account information',
+    emailAddress: 'Email address',
+    signInMethod: 'Sign-in method',
+    accountStatus: 'Account status',
+    accountStatusActive: 'Active',
+    personalInfo: 'Personal details',
+    displayName: 'Display name',
+    company: 'Company',
+    role: 'Role',
+    phone: 'Phone',
+    profileSavedLocally: 'Saved locally for now. Supabase profile storage comes next.',
+    historyPreviewTitle: 'Comparison history',
+    historyPreviewCopy: 'Saved comparison reports will appear here after the history database is connected.',
+    historyPreviewEmpty: 'No saved comparisons yet.',
     googleLoginUnavailable: 'Add Supabase settings and enable the Google provider to use Google login.',
     googleLoginLoading: 'Loading Google sign-in...',
     googleLoginError: 'Google login could not be completed. Please try again.',
@@ -295,6 +320,63 @@ const copy = {
   },
 } satisfies Record<Language, Record<string, unknown>>;
 
+const accountLabels = {
+  en: {
+    profileTab: 'Profile',
+    historyTab: 'History',
+    accountInfo: 'Account information',
+    emailAddress: 'Email address',
+    signInMethod: 'Sign-in method',
+    accountStatus: 'Account status',
+    accountStatusActive: 'Active',
+    personalInfo: 'Personal details',
+    displayName: 'Display name',
+    company: 'Company',
+    role: 'Role',
+    phone: 'Phone',
+    profileSavedLocally: 'Saved locally for now. Supabase profile storage comes next.',
+    historyPreviewTitle: 'Comparison history',
+    historyPreviewCopy: 'Saved comparison reports will appear here after the history database is connected.',
+    historyPreviewEmpty: 'No saved comparisons yet.',
+  },
+  ko: {
+    profileTab: '프로필',
+    historyTab: '히스토리',
+    accountInfo: '계정 정보',
+    emailAddress: '이메일 주소',
+    signInMethod: '로그인 방식',
+    accountStatus: '계정 상태',
+    accountStatusActive: '활성',
+    personalInfo: '개인정보',
+    displayName: '표시 이름',
+    company: '회사',
+    role: '직무',
+    phone: '연락처',
+    profileSavedLocally: '현재는 로컬에 임시 저장됩니다. 다음 단계에서 Supabase 프로필 저장소와 연결합니다.',
+    historyPreviewTitle: '비교 히스토리',
+    historyPreviewCopy: '히스토리 데이터베이스를 연결하면 저장된 비교 리포트가 여기에 표시됩니다.',
+    historyPreviewEmpty: '아직 저장된 비교 기록이 없습니다.',
+  },
+  ja: {
+    profileTab: 'プロフィール',
+    historyTab: '履歴',
+    accountInfo: 'アカウント情報',
+    emailAddress: 'メールアドレス',
+    signInMethod: 'ログイン方法',
+    accountStatus: 'アカウント状態',
+    accountStatusActive: '有効',
+    personalInfo: '個人情報',
+    displayName: '表示名',
+    company: '会社',
+    role: '役割',
+    phone: '電話番号',
+    profileSavedLocally: '現在はローカルに一時保存されます。次の段階で Supabase のプロフィール保存に接続します。',
+    historyPreviewTitle: '比較履歴',
+    historyPreviewCopy: '履歴データベースを接続すると、保存済みの比較レポートがここに表示されます。',
+    historyPreviewEmpty: '保存された比較はまだありません。',
+  },
+} satisfies Record<Language, Record<string, string>>;
+
 const previewRows = [
   { item: 'Workstation', quoteA: '$2,400', quoteB: '$2,280', delta: '-120', tone: 'text-emerald-600' },
   { item: 'Display 27"', quoteA: '$580', quoteB: '$620', delta: '+40', tone: 'text-rose-600' },
@@ -375,6 +457,13 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState('');
   const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [accountTab, setAccountTab] = useState<AccountTab>('profile');
+  const [profileSettings, setProfileSettings] = useState<ProfileSettings>({
+    displayName: '',
+    company: '',
+    role: '',
+    phone: '',
+  });
   const [googleError, setGoogleError] = useState('');
   const [isGoogleAuthLoading, setIsGoogleAuthLoading] = useState(false);
   const [emailAuthEmail, setEmailAuthEmail] = useState('');
@@ -383,6 +472,7 @@ export default function App() {
   const [emailAuthMessage, setEmailAuthMessage] = useState('');
   const [isEmailAuthLoading, setIsEmailAuthLoading] = useState(false);
   const t = copy[language];
+  const accountText = accountLabels[language];
 
   useEffect(() => {
     if (!supabaseClient) {
@@ -463,6 +553,46 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const savedProfile = window.localStorage.getItem(profileStorageKey);
+
+    if (!savedProfile) {
+      return;
+    }
+
+    try {
+      const parsedProfile = JSON.parse(savedProfile) as Partial<ProfileSettings>;
+      setProfileSettings({
+        displayName: parsedProfile.displayName || '',
+        company: parsedProfile.company || '',
+        role: parsedProfile.role || '',
+        phone: parsedProfile.phone || '',
+      });
+    } catch {
+      window.localStorage.removeItem(profileStorageKey);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setAccountTab('profile');
+      return;
+    }
+
+    setProfileSettings((previousProfile) => {
+      if (previousProfile.displayName) {
+        return previousProfile;
+      }
+
+      const nextProfile = {
+        ...previousProfile,
+        displayName: currentUser.name,
+      };
+      window.localStorage.setItem(profileStorageKey, JSON.stringify(nextProfile));
+      return nextProfile;
+    });
+  }, [currentUser]);
+
+  useEffect(() => {
     if (activeView !== 'analyzing') {
       return undefined;
     }
@@ -506,6 +636,7 @@ export default function App() {
     setGoogleError('');
     setEmailAuthError('');
     setEmailAuthMessage('');
+    setAccountTab('profile');
     setIsLoginOpen(true);
   };
 
@@ -607,8 +738,20 @@ export default function App() {
   const handleLogout = async () => {
     await supabaseClient?.auth.signOut();
     setCurrentUser(null);
+    setAccountTab('profile');
     window.localStorage.removeItem(authStorageKey);
     setIsLoginOpen(false);
+  };
+
+  const handleProfileChange = (field: keyof ProfileSettings, value: string) => {
+    setProfileSettings((previousProfile) => {
+      const nextProfile = {
+        ...previousProfile,
+        [field]: value,
+      };
+      window.localStorage.setItem(profileStorageKey, JSON.stringify(nextProfile));
+      return nextProfile;
+    });
   };
 
   const handleFileUpload = (fileNumber: 1 | 2, event: React.ChangeEvent<HTMLInputElement>) => {
@@ -815,7 +958,10 @@ export default function App() {
       {isLoginOpen ? (
         <LoginModal
           t={t}
+          labels={accountText}
           currentUser={currentUser}
+          activeTab={accountTab}
+          profileSettings={profileSettings}
           isGoogleAuthAvailable={Boolean(supabaseClient)}
           isGoogleLoading={isGoogleAuthLoading}
           googleError={googleError}
@@ -830,6 +976,8 @@ export default function App() {
           onPasswordChange={setEmailAuthPassword}
           onEmailLogin={handleEmailLogin}
           onEmailSignup={handleEmailSignup}
+          onTabChange={setAccountTab}
+          onProfileChange={handleProfileChange}
           onClose={closeLogin}
           onLogout={handleLogout}
         />
@@ -864,7 +1012,10 @@ function createSupabaseUserSession(user: { email?: string; app_metadata?: Record
 
 function LoginModal({
   t,
+  labels,
   currentUser,
+  activeTab,
+  profileSettings,
   isGoogleAuthAvailable,
   isGoogleLoading,
   googleError,
@@ -879,11 +1030,16 @@ function LoginModal({
   onPasswordChange,
   onEmailLogin,
   onEmailSignup,
+  onTabChange,
+  onProfileChange,
   onClose,
   onLogout,
 }: {
   t: (typeof copy)[Language];
+  labels: (typeof accountLabels)[Language];
   currentUser: UserSession | null;
+  activeTab: AccountTab;
+  profileSettings: ProfileSettings;
   isGoogleAuthAvailable: boolean;
   isGoogleLoading: boolean;
   googleError: string;
@@ -898,12 +1054,14 @@ function LoginModal({
   onPasswordChange: (value: string) => void;
   onEmailLogin: (event: React.FormEvent<HTMLFormElement>) => void;
   onEmailSignup: () => void;
+  onTabChange: (tab: AccountTab) => void;
+  onProfileChange: (field: keyof ProfileSettings, value: string) => void;
   onClose: () => void;
   onLogout: () => void | Promise<void>;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#10243f]/40 px-5 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-[#dbe5f1] bg-white p-6 shadow-[0_28px_80px_rgba(15,35,65,0.22)]">
+      <div className="w-full max-w-2xl rounded-2xl border border-[#dbe5f1] bg-white p-6 shadow-[0_28px_80px_rgba(15,35,65,0.22)]">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#2563eb]">{t.account}</p>
@@ -923,25 +1081,102 @@ function LoginModal({
         </div>
 
         {currentUser ? (
-          <div className="mb-5 rounded-xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{t.loggedInAs}</p>
-            <div className="mt-3 flex items-center gap-3">
-              {currentUser.picture ? (
-                <img
-                  src={currentUser.picture}
-                  alt=""
-                  className="h-10 w-10 rounded-full border border-[#dbe5f1] bg-white"
-                />
-              ) : (
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eff6ff] text-[#2563eb]">
-                  <User className="h-5 w-5" />
-                </div>
-              )}
-              <div>
-                <p className="font-semibold text-[#10243f]">{currentUser.name}</p>
-                <p className="mt-1 text-sm text-slate-500">{currentUser.email}</p>
-              </div>
+          <div className="mb-5">
+            <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-[#dbe5f1] bg-[#f8fbff] p-1">
+              {(['profile', 'history'] as AccountTab[]).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => onTabChange(tab)}
+                  className={`flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg text-sm font-bold transition-colors ${
+                    activeTab === tab ? 'bg-white text-[#1e3a5f] shadow-sm' : 'text-slate-500 hover:text-[#2563eb]'
+                  }`}
+                >
+                  {tab === 'profile' ? <Settings className="h-4 w-4" /> : <History className="h-4 w-4" />}
+                  {tab === 'profile' ? labels.profileTab : labels.historyTab}
+                </button>
+              ))}
             </div>
+
+            {activeTab === 'profile' ? (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-[#dbe5f1] bg-[#f8fbff] p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{t.loggedInAs}</p>
+                  <div className="mt-3 flex items-center gap-3">
+                    {currentUser.picture ? (
+                      <img
+                        src={currentUser.picture}
+                        alt=""
+                        className="h-12 w-12 rounded-full border border-[#dbe5f1] bg-white"
+                      />
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#eff6ff] text-[#2563eb]">
+                        <User className="h-5 w-5" />
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-semibold text-[#10243f]">{profileSettings.displayName || currentUser.name}</p>
+                      <p className="mt-1 text-sm text-slate-500">{currentUser.email}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-xl border border-[#dbe5f1] bg-white p-4">
+                    <p className="mb-3 text-sm font-bold text-[#10243f]">{labels.accountInfo}</p>
+                    <dl className="space-y-3 text-sm">
+                      <div>
+                        <dt className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{labels.emailAddress}</dt>
+                        <dd className="mt-1 font-semibold text-[#1e3a5f]">{currentUser.email}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{labels.signInMethod}</dt>
+                        <dd className="mt-1 font-semibold capitalize text-[#1e3a5f]">{currentUser.provider}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">{labels.accountStatus}</dt>
+                        <dd className="mt-1 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
+                          {labels.accountStatusActive}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+
+                  <div className="rounded-xl border border-[#dbe5f1] bg-white p-4">
+                    <p className="mb-3 text-sm font-bold text-[#10243f]">{labels.personalInfo}</p>
+                    <div className="space-y-3">
+                      {([
+                        ['displayName', labels.displayName],
+                        ['company', labels.company],
+                        ['role', labels.role],
+                        ['phone', labels.phone],
+                      ] as Array<[keyof ProfileSettings, string]>).map(([field, label]) => (
+                        <label key={field} className="block">
+                          <span className="mb-1.5 block text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
+                            {label}
+                          </span>
+                          <input
+                            type="text"
+                            value={profileSettings[field]}
+                            onChange={(event) => onProfileChange(field, event.target.value)}
+                            className="h-10 w-full rounded-lg border border-[#c8d7eb] bg-white px-3 text-sm font-medium text-[#10243f] outline-none transition-colors placeholder:text-slate-400 focus:border-[#2563eb]"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-slate-500">{labels.profileSavedLocally}</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-[#dbe5f1] bg-[#f8fbff] p-5">
+                <p className="text-sm font-bold text-[#10243f]">{labels.historyPreviewTitle}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{labels.historyPreviewCopy}</p>
+                <div className="mt-4 rounded-lg border border-dashed border-[#c8d7eb] bg-white px-4 py-5 text-center text-sm font-semibold text-slate-500">
+                  {labels.historyPreviewEmpty}
+                </div>
+              </div>
+            )}
           </div>
         ) : null}
 
