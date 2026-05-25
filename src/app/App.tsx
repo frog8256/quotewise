@@ -338,6 +338,11 @@ const accountLabels = {
     historyPreviewTitle: 'Comparison history',
     historyPreviewCopy: 'Saved comparison reports will appear here after the history database is connected.',
     historyPreviewEmpty: 'No saved comparisons yet.',
+    loginHeading: 'Login',
+    googleLoginSection: 'Continue with Google',
+    termsAgreement: 'I agree to the',
+    termsLink: 'Terms of Service',
+    termsAndPrivacy: 'and Privacy Policy.',
   },
   ko: {
     profileTab: '프로필',
@@ -356,6 +361,11 @@ const accountLabels = {
     historyPreviewTitle: '비교 히스토리',
     historyPreviewCopy: '히스토리 데이터베이스를 연결하면 저장된 비교 리포트가 여기에 표시됩니다.',
     historyPreviewEmpty: '아직 저장된 비교 기록이 없습니다.',
+    loginHeading: '로그인',
+    googleLoginSection: 'Google로 계속하기',
+    termsAgreement: '다음에 동의합니다:',
+    termsLink: '이용약관',
+    termsAndPrivacy: '및 개인정보 처리방침',
   },
   ja: {
     profileTab: 'プロフィール',
@@ -374,6 +384,11 @@ const accountLabels = {
     historyPreviewTitle: '比較履歴',
     historyPreviewCopy: '履歴データベースを接続すると、保存済みの比較レポートがここに表示されます。',
     historyPreviewEmpty: '保存された比較はまだありません。',
+    loginHeading: 'ログイン',
+    googleLoginSection: 'Googleで続行',
+    termsAgreement: '以下に同意します:',
+    termsLink: '利用規約',
+    termsAndPrivacy: 'およびプライバシーポリシー',
   },
 } satisfies Record<Language, Record<string, string>>;
 
@@ -1059,16 +1074,42 @@ function LoginModal({
   onClose: () => void;
   onLogout: () => void | Promise<void>;
 }) {
+  const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
+  const isAuthDisabled = !hasAcceptedTerms || isGoogleLoading || isEmailLoading;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#10243f]/40 px-5 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-2xl border border-[#dbe5f1] bg-white p-6 shadow-[0_28px_80px_rgba(15,35,65,0.22)]">
+      <div
+        className={`w-full rounded-2xl border border-[#dbe5f1] bg-white p-6 shadow-[0_28px_80px_rgba(15,35,65,0.22)] ${
+          currentUser ? 'max-w-2xl' : 'max-w-md'
+        }`}
+      >
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#2563eb]">{t.account}</p>
-            <h2 className="text-2xl font-semibold text-[#10243f]">{currentUser ? t.account : t.loginTitle}</h2>
+            <h2 className="text-2xl font-semibold text-[#10243f]">
+              {currentUser ? t.account : labels.loginHeading}
+            </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
               {currentUser ? currentUser.email : t.loginCopy}
             </p>
+            {!currentUser ? (
+              <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-[#dbe5f1] bg-[#f8fbff] p-3 text-sm leading-5 text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={hasAcceptedTerms}
+                  onChange={(event) => setHasAcceptedTerms(event.target.checked)}
+                  className="mt-1 h-4 w-4 cursor-pointer rounded border-[#c8d7eb] accent-[#2563eb]"
+                />
+                <span>
+                  {labels.termsAgreement}{' '}
+                  <a href="#terms" className="font-bold text-[#2563eb] hover:text-[#1e3a5f]">
+                    {labels.termsLink}
+                  </a>{' '}
+                  {labels.termsAndPrivacy}
+                </span>
+              </label>
+            ) : null}
           </div>
           <button
             type="button"
@@ -1205,12 +1246,20 @@ function LoginModal({
             </Button>
           ) : (
             <>
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-[#dbe5f1]" />
+            <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+              {labels.googleLoginSection}
+            </span>
+            <div className="h-px flex-1 bg-[#dbe5f1]" />
+          </div>
+
               {isGoogleAuthAvailable ? (
             <Button
               type="button"
               variant="outlined"
               fullWidth
-              disabled={isGoogleLoading}
+              disabled={isAuthDisabled}
               onClick={onGoogleLogin}
               startIcon={<GoogleLogo />}
               sx={{
@@ -1218,7 +1267,7 @@ function LoginModal({
                 borderColor: '#c8d7eb',
                 borderRadius: '10px',
                 color: '#1e3a5f',
-                cursor: isGoogleLoading ? 'not-allowed' : 'pointer',
+                cursor: isAuthDisabled ? 'not-allowed' : 'pointer',
                 fontWeight: 700,
                 textTransform: 'none',
                 '&:hover': {
@@ -1227,7 +1276,7 @@ function LoginModal({
                 },
               }}
             >
-              {isGoogleLoading ? t.googleLoginLoading : t.loginTitle}
+              {isGoogleLoading ? t.googleLoginLoading : labels.loginHeading}
             </Button>
           ) : (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
@@ -1271,12 +1320,12 @@ function LoginModal({
                 <Button
                   type="submit"
                   variant="contained"
-                  disabled={isEmailLoading}
+                  disabled={isAuthDisabled}
                   sx={{
                     py: 1.15,
                     backgroundColor: '#1e3a5f',
                     borderRadius: '10px',
-                    cursor: isEmailLoading ? 'not-allowed' : 'pointer',
+                    cursor: isAuthDisabled ? 'not-allowed' : 'pointer',
                     fontWeight: 700,
                     textTransform: 'none',
                     '&:hover': { backgroundColor: '#2563eb' },
@@ -1291,14 +1340,14 @@ function LoginModal({
                 <Button
                   type="button"
                   variant="outlined"
-                  disabled={isEmailLoading}
+                  disabled={isAuthDisabled}
                   onClick={onEmailSignup}
                   sx={{
                     py: 1.15,
                     borderColor: '#c8d7eb',
                     borderRadius: '10px',
                     color: '#1e3a5f',
-                    cursor: isEmailLoading ? 'not-allowed' : 'pointer',
+                    cursor: isAuthDisabled ? 'not-allowed' : 'pointer',
                     fontWeight: 700,
                     textTransform: 'none',
                     '&:hover': {
