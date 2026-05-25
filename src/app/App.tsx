@@ -395,7 +395,11 @@ export default function App() {
 
     const applySession = (session: Awaited<ReturnType<typeof supabaseClient.auth.getSession>>['data']['session']) => {
       if (session?.user.email) {
-        setCurrentUser(createSupabaseUserSession(session.user));
+        const signedInUser = createSupabaseUserSession(session.user);
+        setCurrentUser(signedInUser);
+        window.localStorage.setItem(authStorageKey, JSON.stringify(signedInUser));
+        setGoogleError('');
+        setEmailAuthError('');
         setIsLoginOpen(false);
       }
     };
@@ -407,6 +411,7 @@ export default function App() {
 
       if (authError) {
         setGoogleError(authError);
+        setIsLoginOpen(true);
         cleanAuthUrl();
         return;
       }
@@ -416,6 +421,7 @@ export default function App() {
 
         if (error) {
           setGoogleError(error.message || t.googleLoginError);
+          setIsLoginOpen(true);
         } else {
           applySession(data.session);
         }
