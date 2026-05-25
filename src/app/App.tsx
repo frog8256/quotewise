@@ -33,6 +33,11 @@ type ProfileSettings = {
   role: string;
   phone: string;
 };
+type CreateComparisonJobResponse = {
+  jobId: string;
+  guestAccessToken: string;
+  expiresAt: string;
+};
 
 const authStorageKey = 'quotewise.user';
 const profileStorageKey = 'quotewise.profile';
@@ -620,6 +625,7 @@ export default function App() {
   const [emailAuthError, setEmailAuthError] = useState('');
   const [emailAuthMessage, setEmailAuthMessage] = useState('');
   const [isEmailAuthLoading, setIsEmailAuthLoading] = useState(false);
+  const [isComparisonUploadLoading, setIsComparisonUploadLoading] = useState(false);
   const t = copy[language];
   const accountText = accountLabels[language];
 
@@ -932,11 +938,43 @@ export default function App() {
     }
   };
 
-  const handleAnalyze = () => {
-    if (file1 && file2) {
-      console.log('분석 시작:', file1.name, file2.name);
+  const handleAnalyze = async () => {
+    if (!file1 || !file2 || isComparisonUploadLoading) {
+      return;
+    }
+
+    if (!supabaseClient) {
+      setErrorMessage('Supabase is not configured yet.');
+      return;
+    }
+
+    setIsComparisonUploadLoading(true);
+    setErrorMessage('');
+
+    const formData = new FormData();
+    formData.append('quoteA', file1);
+    formData.append('quoteB', file2);
+
+    try {
+      const { data, error } = await supabaseClient.functions.invoke<CreateComparisonJobResponse>(
+        'create-comparison-job',
+        {
+          body: formData,
+        },
+      );
+
+      if (error || !data?.jobId) {
+        setErrorMessage(error?.message || 'Failed to upload quotation files.');
+        return;
+      }
+
+      console.log('Comparison job created:', data.jobId);
       setActiveView('analyzing');
       window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to upload quotation files.');
+    } finally {
+      setIsComparisonUploadLoading(false);
     }
   };
 
@@ -1096,6 +1134,7 @@ export default function App() {
             file1={file1}
             file2={file2}
             errorMessage={errorMessage}
+            isUploading={isComparisonUploadLoading}
             onFileUpload={handleFileUpload}
             onAnalyze={handleAnalyze}
           />
@@ -2194,6 +2233,7 @@ function UploadSection({
   file1,
   file2,
   errorMessage,
+  isUploading,
   onFileUpload,
   onAnalyze,
 }: {
@@ -2201,8 +2241,9 @@ function UploadSection({
   file1: File | null;
   file2: File | null;
   errorMessage: string;
+  isUploading: boolean;
   onFileUpload: (fileNumber: 1 | 2, event: React.ChangeEvent<HTMLInputElement>) => void;
-  onAnalyze: () => void;
+  onAnalyze: () => void | Promise<void>;
 }) {
   return (
     <section className="mx-auto max-w-7xl px-5 py-16 md:px-8 md:py-20">
@@ -2239,16 +2280,16 @@ function UploadSection({
         <Button
           variant="contained"
           size="large"
-          disabled={!file1 || !file2}
+          disabled={!file1 || !file2 || isUploading}
           onClick={onAnalyze}
-          endIcon={<ArrowRight className="h-5 w-5" />}
+          endIcon={isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
           sx={{
             px: 4,
             py: 1.5,
             backgroundColor: '#1e3a5f',
             borderRadius: '10px',
             boxShadow: '0 14px 30px rgba(30, 58, 95, 0.2)',
-            cursor: file1 && file2 ? 'pointer' : 'not-allowed',
+            cursor: file1 && file2 && !isUploading ? 'pointer' : 'not-allowed',
             fontSize: '1rem',
             fontWeight: 700,
             textTransform: 'none',
@@ -2259,7 +2300,7 @@ function UploadSection({
             },
           }}
         >
-          {t.analyze}
+          {isUploading ? t.analyzingTitle : t.analyze}
         </Button>
       </div>
     </section>
