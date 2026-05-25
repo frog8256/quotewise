@@ -988,7 +988,7 @@ export default function App() {
 
         {activeView === 'history' ? <HistorySection t={t} onStartComparison={showCompare} /> : null}
 
-        {activeView === 'terms' ? <TermsSection onBack={showHome} /> : null}
+        {activeView === 'terms' ? <TermsSection language={language} onBack={showHome} /> : null}
       </main>
 
       {isLoginOpen ? (
@@ -1644,7 +1644,225 @@ const termsSections = [
   },
 ];
 
-function TermsSection({ onBack }: { onBack: () => void }) {
+type TermsSectionData = (typeof termsSections)[number];
+
+const translatedTerms = {
+  en: {
+    back: 'Back to home',
+    label: 'Legal',
+    title: 'QuoteWise Terms of Service',
+    updated: 'Last Updated: May 25, 2026',
+    intro: [
+      'Welcome to QuoteWise (“QuoteWise”, “we”, “our”, or “us”).',
+      'These Terms of Service (“Terms”) govern your access to and use of the QuoteWise website, applications, AI analysis tools, and related services (collectively, the “Service”).',
+      'By accessing or using the Service, you agree to these Terms.',
+    ],
+    sections: termsSections,
+  },
+  ko: {
+    back: '홈으로 돌아가기',
+    label: '법적 고지',
+    title: 'QuoteWise 이용약관',
+    updated: '최종 업데이트: 2026년 5월 25일',
+    intro: [
+      'QuoteWise(이하 “QuoteWise”, “당사”, “우리”)에 오신 것을 환영합니다.',
+      '본 이용약관(이하 “약관”)은 QuoteWise 웹사이트, 애플리케이션, AI 분석 도구 및 관련 서비스(통칭 “서비스”)에 대한 접근과 이용에 적용됩니다.',
+      '서비스에 접근하거나 서비스를 이용함으로써 귀하는 본 약관에 동의합니다.',
+    ],
+    sections: [
+      {
+        title: '1. 서비스 설명',
+        body: [
+          'QuoteWise는 사용자가 견적서, 제안서, 스프레드시트 및 기타 구매 관련 자료와 같은 업로드 문서를 검토, 분석, 비교할 수 있도록 지원하는 AI 기반 견적 및 제안 비교 플랫폼입니다.',
+          '서비스는 자동 비교표, 가격 분석, 위험 지표, 누락 항목 탐지, 협상 제안, AI 생성 요약, 추천 점수 및 구조화된 구매 인사이트를 제공할 수 있습니다.',
+          'QuoteWise는 분석 및 정보 제공 지원만을 제공합니다. 모든 의사결정, 평가, 협상, 구매, 공급업체 선정 및 사업적 판단은 전적으로 사용자 책임입니다.',
+        ],
+      },
+      {
+        title: '2. 전문 자문 아님',
+        body: [
+          'QuoteWise는 법률, 회계, 재무, 구매, 컨설팅 또는 기타 전문 자문 서비스가 아닙니다.',
+          'QuoteWise의 분석은 자동화된 AI 생성 결과이며 확률적 성격을 가지고, 참고 목적으로만 제공됩니다.',
+          'QuoteWise는 정확성, 완전성, 공급업체 품질, 가격의 공정성, 법적 준수, 사업 적합성 또는 구매 결과를 보장하지 않습니다. 사용자는 모든 문서와 분석 결과를 독립적으로 검토해야 합니다.',
+        ],
+      },
+      {
+        title: '3. 업로드 파일 및 사용자 콘텐츠',
+        body: [
+          '사용자는 PDF, 스프레드시트, 이미지, 견적서, 제안서 및 구매 관련 자료를 포함한 문서(통칭 “업로드 콘텐츠”)를 업로드할 수 있습니다.',
+          '사용자는 콘텐츠를 업로드할 법적 권리가 있으며, 업로드가 법률 또는 제3자의 권리를 침해하지 않고, 불법적이거나 악성인 자료를 포함하지 않음을 진술하고 보증합니다.',
+        ],
+      },
+      {
+        title: '4. 파일 처리 및 서비스 개선',
+        body: [
+          '업로드 콘텐츠는 분석 결과 생성, 서비스 품질 개선, AI 분석 정확도 향상, 디버깅, 오류 방지, 남용 방지, 시스템 모니터링, 기능 개발, 분석, 운영 유지관리 및 QuoteWise 관련 내부 연구를 위해 처리, 분석, 임시 저장, 변환, 색인화 또는 기타 방식으로 사용될 수 있습니다.',
+          'QuoteWise는 생성된 분석 결과, 추출 텍스트, 구조화된 메타데이터, 익명화 또는 변환된 데이터 및 운영 로그를 서비스 관련 목적으로 보관할 수 있습니다.',
+        ],
+      },
+      {
+        title: '5. 파일 저장 정책',
+        body: [
+          'QuoteWise는 업로드 콘텐츠의 영구 저장을 보장하지 않습니다. 업로드 파일은 임시 캐시, 분석 중 처리, 정기 삭제 또는 사전 통지 없는 제거의 대상이 될 수 있습니다.',
+          '사용자는 업로드 문서의 백업을 직접 유지할 책임이 있으며, 법률과 회사 정책상 허용되지 않는 고도의 기밀 정보, 규제 데이터, 영업비밀 등을 업로드하지 않아야 합니다.',
+        ],
+      },
+      {
+        title: '6. AI 생성 결과 면책',
+        body: [
+          'QuoteWise는 인공지능 및 자동화 알고리즘을 사용하여 업로드 자료를 분석합니다. AI 생성 결과에는 부정확성, 정보 누락, 문서 오해석, 불완전한 비교, 위험 식별 실패 또는 오해의 소지가 있는 결론이 포함될 수 있습니다.',
+          '서비스는 의사결정 지원 도구로만 제공됩니다. 최종 해석, 평가, 구매 결정 및 사업적 판단은 전적으로 사용자가 수행하며, 사용자는 생성 결과에 근거한 모든 조치에 책임을 집니다.',
+        ],
+      },
+      {
+        title: '7. 결제 및 크레딧',
+        body: [
+          '서비스의 일부 기능은 결제, 크레딧, 구독 또는 사용료가 필요할 수 있습니다. 관련 법률에서 달리 요구하지 않는 한 결제는 환불되지 않을 수 있고, 크레딧은 만료될 수 있으며, 가격은 사전 통지 없이 변경될 수 있습니다.',
+          'QuoteWise는 남용, 사기, 과도한 자동 사용 또는 정책 위반이 있는 경우 사용을 제한, 정지 또는 취소할 권리를 보유합니다.',
+        ],
+      },
+      {
+        title: '8. 지식재산권',
+        body: [
+          '서비스에 대한 모든 권리, 소유권 및 이익은 소프트웨어, 인터페이스, 브랜딩, 디자인, 알고리즘, 분석 시스템 및 생성 레이아웃을 포함하여 QuoteWise 또는 그 라이선스 제공자에게 귀속됩니다.',
+          '사용자는 업로드 콘텐츠에 대한 소유권을 유지하지만, 서비스 운영, 유지관리, 개선 및 개발에 필요한 범위에서 QuoteWise가 업로드 콘텐츠를 처리, 분석, 저장, 변환, 복제 및 사용할 수 있는 전 세계적, 비독점적, 무상 라이선스를 부여합니다.',
+        ],
+      },
+      {
+        title: '9. 개인정보 및 보안',
+        body: [
+          'QuoteWise는 사용자 데이터와 시스템 보안을 보호하기 위해 상업적으로 합리적인 조치를 취합니다. 그러나 어떠한 온라인 서비스도 절대적인 보안을 보장할 수 없습니다.',
+          '사용자는 인터넷을 통한 정보 전송과 관련된 위험을 인정하고 수락합니다.',
+        ],
+      },
+      {
+        title: '10. 금지된 사용',
+        body: [
+          '사용자는 불법 또는 권리 침해 자료 업로드, 시스템 운영 방해, 서비스 리버스 엔지니어링, 자동 스크래핑 또는 남용 메커니즘 사용, 악성코드 업로드, 데이터 또는 인프라에 대한 무단 접근 시도를 할 수 없습니다.',
+          'QuoteWise는 위반 시 접근을 정지하거나 종료할 권리를 보유합니다.',
+        ],
+      },
+      {
+        title: '11. 책임 제한',
+        body: [
+          '법률이 허용하는 최대 범위 내에서 QuoteWise는 간접 손해, 이익 손실, 구매 손실, 공급업체 분쟁, 계약 분쟁, 가격 불일치, 사업 중단, AI 생성 결과에 대한 의존 또는 부정확하거나 불완전한 분석에 대해 책임을 지지 않습니다.',
+          '서비스 이용은 전적으로 사용자의 책임하에 이루어집니다.',
+        ],
+      },
+      {
+        title: '12. 약관 변경',
+        body: ['QuoteWise는 언제든지 본 약관을 업데이트할 수 있습니다. 개정 약관이 효력을 발생한 후 서비스를 계속 이용하는 것은 개정 약관에 동의하는 것으로 간주됩니다.'],
+      },
+      {
+        title: '13. 연락처',
+        body: ['본 약관에 관한 문의: support@quotewise.ai'],
+      },
+    ],
+  },
+  ja: {
+    back: 'ホームに戻る',
+    label: '法的情報',
+    title: 'QuoteWise 利用規約',
+    updated: '最終更新日: 2026年5月25日',
+    intro: [
+      'QuoteWise（以下「QuoteWise」、「当社」、「私たち」）へようこそ。',
+      '本利用規約（以下「本規約」）は、QuoteWise のウェブサイト、アプリケーション、AI分析ツール、および関連サービス（総称して「本サービス」）へのアクセスおよび利用に適用されます。',
+      '本サービスにアクセスまたは利用することにより、ユーザーは本規約に同意したものとみなされます。',
+    ],
+    sections: [
+      {
+        title: '1. サービスの説明',
+        body: [
+          'QuoteWise は、見積書、提案書、スプレッドシート、その他調達関連資料などのアップロード文書を確認、分析、比較するための AI 搭載型の見積・提案比較プラットフォームです。',
+          '本サービスは、自動比較表、価格分析、リスク指標、不足項目の検出、交渉提案、AI生成要約、推奨スコア、構造化された調達インサイトを提供する場合があります。',
+          'QuoteWise は分析および情報提供の支援のみを行います。すべての意思決定、評価、交渉、購入、ベンダー選定、および事業判断はユーザー自身の責任で行われます。',
+        ],
+      },
+      {
+        title: '2. 専門的助言ではないこと',
+        body: [
+          'QuoteWise は、法律、会計、財務、調達、コンサルティング、その他の専門的助言サービスではありません。',
+          'QuoteWise が生成する分析は、自動化された AI 生成結果であり、確率的性質を有し、参考目的に限って提供されます。',
+          'QuoteWise は、正確性、完全性、ベンダー品質、価格の公正性、法令遵守、事業適合性、または調達結果を保証しません。ユーザーは文書および分析結果を独自に確認する必要があります。',
+        ],
+      },
+      {
+        title: '3. アップロードファイルおよびユーザーコンテンツ',
+        body: [
+          'ユーザーは、PDF、スプレッドシート、画像、見積書、提案書、調達関連資料を含む文書（総称して「アップロードコンテンツ」）をアップロードできます。',
+          'ユーザーは、コンテンツをアップロードする法的権利を有し、アップロードが法令または第三者の権利を侵害せず、違法または悪意のある素材を含まないことを表明し保証します。',
+        ],
+      },
+      {
+        title: '4. ファイル処理およびサービス改善',
+        body: [
+          'アップロードコンテンツは、分析結果の生成、サービス品質の改善、AI分析精度の向上、デバッグ、エラー防止、不正利用防止、システム監視、機能開発、分析、運用保守、および QuoteWise 関連の内部研究のために処理、分析、一時保存、変換、索引化、またはその他の方法で使用される場合があります。',
+          'QuoteWise は、生成された分析結果、抽出テキスト、構造化メタデータ、匿名化または変換されたデータ、運用ログをサービス関連の目的で保持する場合があります。',
+        ],
+      },
+      {
+        title: '5. ファイル保存ポリシー',
+        body: [
+          'QuoteWise はアップロードコンテンツの永続的な保存を保証しません。アップロードファイルは、一時キャッシュ、分析中の処理、定期削除、または通知なしの削除の対象となる場合があります。',
+          'ユーザーはアップロード文書のバックアップを自ら保持する責任があります。適用法令および社内ポリシーで許可されていない機密情報、規制対象データ、営業秘密などをアップロードしないでください。',
+        ],
+      },
+      {
+        title: '6. AI生成出力に関する免責',
+        body: [
+          'QuoteWise は、人工知能および自動化アルゴリズムを使用してアップロード資料を分析します。AI生成出力には、不正確さ、情報の欠落、文書の誤解釈、不完全な比較、リスク識別の失敗、誤解を招く結論が含まれる場合があります。',
+          '本サービスは意思決定支援ツールとしてのみ提供されます。最終的な解釈、評価、調達判断、および事業判断はユーザー自身が行い、生成結果に基づく行為について全責任を負います。',
+        ],
+      },
+      {
+        title: '7. 支払いおよびクレジット',
+        body: [
+          '本サービスの一部機能には、支払い、クレジット、サブスクリプション、または利用料金が必要となる場合があります。適用法令で別途要求される場合を除き、支払いは返金不可となる場合があり、クレジットは失効することがあり、価格は通知なく変更される場合があります。',
+          'QuoteWise は、不正利用、詐欺、過度な自動利用、またはポリシー違反がある場合、利用を制限、停止、または取り消す権利を留保します。',
+        ],
+      },
+      {
+        title: '8. 知的財産',
+        body: [
+          '本サービスに関するすべての権利、権原および利益は、ソフトウェア、インターフェース、ブランド、デザイン、アルゴリズム、分析システム、生成レイアウトを含め、QuoteWise またはそのライセンサーに帰属します。',
+          'ユーザーはアップロードコンテンツの所有権を保持しますが、本サービスの運営、保守、改善、開発に合理的に必要な範囲で、QuoteWise がアップロードコンテンツを処理、分析、保存、変換、複製、使用するための全世界的、非独占的、無償のライセンスを付与します。',
+        ],
+      },
+      {
+        title: '9. プライバシーおよびセキュリティ',
+        body: [
+          'QuoteWise は、ユーザーデータおよびシステムセキュリティを保護するため、商業的に合理的な措置を講じます。ただし、いかなるオンラインサービスも絶対的な安全性を保証することはできません。',
+          'ユーザーは、インターネットを通じた情報送信に伴うリスクを認識し、受け入れるものとします。',
+        ],
+      },
+      {
+        title: '10. 禁止事項',
+        body: [
+          'ユーザーは、違法または権利侵害コンテンツのアップロード、システム運用の妨害、本サービスのリバースエンジニアリング、自動スクレイピングまたは不正利用メカニズムの使用、マルウェアのアップロード、データまたはインフラへの不正アクセスの試みを行ってはなりません。',
+          'QuoteWise は、違反があった場合、アクセスを停止または終了する権利を留保します。',
+        ],
+      },
+      {
+        title: '11. 責任の制限',
+        body: [
+          '法律で認められる最大限の範囲において、QuoteWise は、間接損害、逸失利益、調達上の損失、ベンダー紛争、契約紛争、価格差異、事業中断、AI生成出力への依存、不正確または不完全な分析について責任を負いません。',
+          '本サービスの利用はユーザー自身の責任で行われます。',
+        ],
+      },
+      {
+        title: '12. 規約の変更',
+        body: ['QuoteWise はいつでも本規約を更新することができます。更新後の規約が有効となった後も本サービスを継続して利用する場合、改定後の規約に同意したものとみなされます。'],
+      },
+      {
+        title: '13. お問い合わせ',
+        body: ['本規約に関するお問い合わせ: support@quotewise.ai'],
+      },
+    ],
+  },
+} satisfies Record<Language, { back: string; label: string; title: string; updated: string; intro: string[]; sections: TermsSectionData[] }>;
+
+function TermsSection({ language, onBack }: { language: Language; onBack: () => void }) {
+  const termsCopy = translatedTerms[language];
   return (
     <section className="bg-[#f8fbff] px-5 py-12 md:px-8 md:py-16">
       <div className="mx-auto max-w-4xl">
@@ -1653,17 +1871,23 @@ function TermsSection({ onBack }: { onBack: () => void }) {
           onClick={onBack}
           className="mb-8 inline-flex h-10 cursor-pointer items-center rounded-lg border border-[#c8d7eb] bg-white px-4 text-sm font-bold text-[#1e3a5f] transition-colors hover:border-[#2563eb] hover:text-[#2563eb]"
         >
-          Back to home
+          {termsCopy.back}
         </button>
 
         <article className="rounded-2xl border border-[#dbe5f1] bg-white p-6 shadow-[0_24px_70px_rgba(15,35,65,0.08)] md:p-10">
-          <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-[#2563eb]">Legal</p>
+          <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-[#2563eb]">{termsCopy.label}</p>
           <h1 className="text-4xl font-semibold tracking-tight text-[#10243f] md:text-5xl">
-            QuoteWise Terms of Service
+            {termsCopy.title}
           </h1>
-          <p className="mt-4 text-sm font-semibold text-slate-500">Last Updated: May 25, 2026</p>
+          <p className="mt-4 text-sm font-semibold text-slate-500">{termsCopy.updated}</p>
 
           <div className="mt-8 space-y-4 border-b border-[#e7edf5] pb-8 text-base leading-8 text-slate-600">
+            {termsCopy.intro.map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
+          </div>
+
+          <div className="hidden">
             <p>Welcome to QuoteWise (“QuoteWise”, “we”, “our”, or “us”).</p>
             <p>
               These Terms of Service (“Terms”) govern your access to and use of the QuoteWise website, applications,
@@ -1673,7 +1897,7 @@ function TermsSection({ onBack }: { onBack: () => void }) {
           </div>
 
           <div className="mt-8 space-y-10">
-            {termsSections.map((section) => (
+            {termsCopy.sections.map((section) => (
               <section key={section.title}>
                 <h2 className="text-xl font-semibold text-[#10243f]">{section.title}</h2>
                 <div className="mt-4 space-y-3 text-base leading-8 text-slate-600">
