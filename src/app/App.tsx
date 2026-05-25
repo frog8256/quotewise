@@ -18,7 +18,7 @@ import Logo from './components/Logo';
 import supabase from './supabase';
 
 type ActiveView = 'home' | 'compare' | 'analyzing' | 'results' | 'history' | 'terms';
-type Language = 'en' | 'ko' | 'ja';
+type Language = 'en' | 'ko' | 'ja' | 'zh';
 type AuthMode = 'login' | 'signup';
 type UserSession = {
   name: string;
@@ -40,6 +40,7 @@ const supabaseClient = supabase;
 
 const languages: Array<{ code: Language; label: string; short: string }> = [
   { code: 'en', label: 'English', short: 'EN' },
+  { code: 'zh', label: '简体中文', short: 'ZH' },
   { code: 'ko', label: '한국어', short: 'KO' },
   { code: 'ja', label: '日本語', short: 'JA' },
 ];
@@ -319,6 +320,92 @@ const copy = {
       },
     ],
   },
+  zh: {
+    home: '首页',
+    compare: '比较',
+    history: '历史',
+    eyebrow: '采购智能',
+    headline: ['两份报价。', '一个清晰决定。'],
+    lead: 'QuoteWise 读取供应商 PDF，对齐不同供应商的明细项目，并突出真正影响决策的差异。',
+    start: '开始比较',
+    viewHistory: '查看历史',
+    previewHeaders: ['项目', '报价 A', '报价 B', '差异'],
+    recommendation: '建议',
+    recommendationValue: '选择报价 B 可节省 $190',
+    compareTitle: '上传两份供应商报价',
+    compareCopy: '上传两份 PDF 报价，QuoteWise 会准备逐项比较。',
+    uploadFirst: '上传第一份报价',
+    uploadSecond: '上传第二份报价',
+    uploadHelp: '选择 PDF 文件或拖放到这里。',
+    selectedFirst: '报价 1',
+    selectedSecond: '报价 2',
+    analyze: '开始比较分析',
+    analyzingTitle: '正在分析报价',
+    analyzingCopy: 'QuoteWise 正在对齐项目、检查价格差异，并准备可用于决策的摘要。',
+    results: '结果',
+    resultsTitle: '报价 B 更有优势',
+    resultsCopy: '报价 B 总体成本更低，并且在安装费用和支持费用方面更有优势。报价 A 仅在显示器项目上更便宜。',
+    totalSavings: '预计节省',
+    recommendedVendor: '推荐报价',
+    matchedItems: '匹配项目',
+    coverageGaps: '范围差异',
+    keyInsights: '关键洞察',
+    quoteA: '报价 A',
+    quoteB: '报价 B',
+    delta: '差异',
+    differentBasis: '计价基准不同',
+    onlyInA: '仅 A 包含',
+    onlyInB: '仅 B 包含',
+    summary: '摘要',
+    newComparison: '新建比较',
+    reportTitle: '详细分析报告',
+    reportCopy: '下载包含建议、项目比较、范围差异和计价基准说明的 PDF 报告。',
+    reportDownload: '下载 PDF',
+    reportPreparedBy: '由 QuoteWise 生成',
+    pdfError: '只能上传 PDF 文件。',
+    login: '登录',
+    account: '账户',
+    loginTitle: '继续使用 Google',
+    loginCopy: '使用 Google 登录，以便保存并重新查看你的报价比较。',
+    logout: '退出登录',
+    loggedInAs: '当前登录账户',
+    googleLoginUnavailable: '请添加 Supabase 设置并启用 Google Provider 后再使用 Google 登录。',
+    googleLoginLoading: '正在加载 Google 登录...',
+    googleLoginError: '无法完成 Google 登录。请重试。',
+    emailLoginTitle: '或使用邮箱',
+    emailLabel: '邮箱',
+    emailPlaceholder: 'you@company.com',
+    passwordLabel: '密码',
+    passwordPlaceholder: '至少 6 个字符',
+    emailLoginSubmit: '使用邮箱登录',
+    emailSignupSubmit: '创建账户',
+    emailAuthUnavailable: '请添加 VITE_SUPABASE_URL 和 VITE_SUPABASE_ANON_KEY 以启用邮箱登录。',
+    emailAuthSuccess: '请查看邮箱以确认你的账户。',
+    emailAuthError: '邮箱认证失败。请检查信息后重试。',
+    historyTitle: '历史功能即将推出',
+    historyCopy: '连接项目存储后，你之前的比较报告会显示在这里。',
+    insightItems: [
+      '按匹配项目计算，报价 B 可节省 $190。',
+      '显示器项目是报价 A 唯一更便宜的项目。',
+      '线缆整理套件仅包含在报价 A 中。',
+      '优先配送仅包含在报价 B 中，批准前需要确认。',
+      '原材料运费使用不同计价基准，最终比较前需要标准化。',
+    ],
+    features: [
+      {
+        title: '审慎提取',
+        copy: '我们解析供应商、项目、数量、单价、总价、交付和付款条款，即使不同报价使用不同表述。',
+      },
+      {
+        title: '逐项并排比较',
+        copy: '系统会匹配两份文件中的项目并突出差异，让你快速看出每家供应商的优势。',
+      },
+      {
+        title: '洞察，而不是噪音',
+        copy: '除了表格，系统还会用简短的执行摘要指出价格、条款和风险中的关键差异。',
+      },
+    ],
+  },
 } satisfies Record<Language, Record<string, unknown>>;
 
 const accountLabels = {
@@ -402,6 +489,33 @@ const accountLabels = {
     termsAgreement: '以下に同意します:',
     termsLink: '利用規約',
     termsAndPrivacy: 'およびプライバシーポリシー',
+  },
+  zh: {
+    profileTab: '资料',
+    historyTab: '历史',
+    accountInfo: '账户信息',
+    emailAddress: '邮箱地址',
+    signInMethod: '登录方式',
+    accountStatus: '账户状态',
+    accountStatusActive: '已启用',
+    personalInfo: '个人信息',
+    displayName: '显示名称',
+    company: '公司',
+    role: '职位',
+    phone: '电话',
+    profileSavedLocally: '当前暂时保存在本地。下一步会连接 Supabase 资料存储。',
+    historyPreviewTitle: '比较历史',
+    historyPreviewCopy: '连接历史数据库后，已保存的比较报告会显示在这里。',
+    historyPreviewEmpty: '暂无保存的比较记录。',
+    loginHeading: '登录',
+    createAccountHeading: '创建账户',
+    createAccountCopy: '创建 QuoteWise 账户，以保存资料并准备比较历史。',
+    googleLoginSection: '继续使用 Google',
+    backToLogin: '返回登录',
+    alreadyHaveAccount: '已有账户？',
+    termsAgreement: '我同意',
+    termsLink: '服务条款',
+    termsAndPrivacy: '和隐私政策。',
   },
 } satisfies Record<Language, Record<string, string>>;
 
@@ -1856,6 +1970,106 @@ const translatedTerms = {
       {
         title: '13. お問い合わせ',
         body: ['本規約に関するお問い合わせ: support@quotewise.ai'],
+      },
+    ],
+  },
+  zh: {
+    back: '返回首页',
+    label: '法律信息',
+    title: 'QuoteWise 服务条款',
+    updated: '最后更新：2026年5月25日',
+    intro: [
+      '欢迎使用 QuoteWise（以下简称“QuoteWise”、“我们”或“本公司”）。',
+      '本服务条款（以下简称“条款”）适用于你访问和使用 QuoteWise 网站、应用、AI 分析工具及相关服务（统称“服务”）。',
+      '访问或使用本服务即表示你同意本条款。',
+    ],
+    sections: [
+      {
+        title: '1. 服务说明',
+        body: [
+          'QuoteWise 是一个由 AI 驱动的报价和方案比较平台，旨在帮助用户审阅、分析和比较上传的报价、方案、电子表格及其他采购相关资料。',
+          '本服务可能提供自动比较表、价格分析、风险指标、缺失项目检测、谈判建议、AI 生成摘要、推荐评分和结构化采购洞察。',
+          'QuoteWise 仅提供分析和信息支持。所有决策、评估、谈判、采购、供应商选择和商业判断均由用户自行负责。',
+        ],
+      },
+      {
+        title: '2. 非专业建议',
+        body: [
+          'QuoteWise 不是法律、会计、财务、采购、咨询或其他专业顾问服务。',
+          'QuoteWise 生成的分析是自动化、AI 生成且具有概率性质的结果，仅供参考。',
+          'QuoteWise 不保证准确性、完整性、供应商质量、价格公平性、法律合规性、商业适用性或采购结果。用户在作出任何商业或财务决定前，必须自行审阅和核实所有文件与分析结果。',
+        ],
+      },
+      {
+        title: '3. 上传文件和用户内容',
+        body: [
+          '用户可以上传 PDF、电子表格、图片、报价单、方案及采购相关资料（统称“上传内容”）。',
+          '用户声明并保证其拥有上传内容的合法权利，上传行为不违反任何法律或第三方权利，且内容不包含违法或恶意材料。',
+        ],
+      },
+      {
+        title: '4. 文件处理和服务改进',
+        body: [
+          '上传内容可能会被 QuoteWise 用于生成分析结果、改进服务质量、提高 AI 分析准确性、调试和防错、防止滥用、系统监控、功能开发、分析、运营维护以及与 QuoteWise 服务相关的内部研究。',
+          'QuoteWise 可能为服务相关目的保留生成的分析结果、提取文本、结构化元数据、匿名化或转换后的数据以及运营日志。',
+        ],
+      },
+      {
+        title: '5. 文件存储政策',
+        body: [
+          'QuoteWise 不保证永久存储上传内容。上传文件可能会被临时缓存、在分析期间处理、定期删除或不经通知移除。',
+          '用户应自行保存上传文件的备份。除非适用法律和公司内部政策允许，否则不应上传高度机密信息、受监管数据、商业秘密或禁止第三方处理的信息。',
+        ],
+      },
+      {
+        title: '6. AI 生成结果免责声明',
+        body: [
+          'QuoteWise 使用人工智能和自动化算法分析上传资料。AI 生成结果可能包含不准确、遗漏、误读、不完整比较、未识别风险或具有误导性的结论。',
+          '本服务仅作为决策支持工具。最终解释、评估、采购决策和商业判断均由用户自行作出，用户对基于生成结果采取的任何行动承担全部责任。',
+        ],
+      },
+      {
+        title: '7. 付款和积分',
+        body: [
+          '本服务的某些功能可能需要付款、积分、订阅或使用费用。除适用法律另有要求外，付款可能不可退款，积分可能过期，促销积分可能受限制，价格可能不经通知而变更。',
+          'QuoteWise 保留在滥用、欺诈、过度自动化使用或违反政策时限制、暂停或撤销使用权限的权利。',
+        ],
+      },
+      {
+        title: '8. 知识产权',
+        body: [
+          '本服务中的软件、界面、品牌、设计、算法、分析系统和生成布局等所有权利、所有权和权益均归 QuoteWise 或其许可方所有。',
+          '用户保留其上传内容的所有权。但用户使用本服务即授予 QuoteWise 一项全球性、非独占、免版税许可，以便在运营、维护、改进和开发服务所合理需要的范围内处理、分析、存储、转换、复制和使用上传内容。',
+        ],
+      },
+      {
+        title: '9. 隐私和安全',
+        body: [
+          'QuoteWise 会采取商业上合理的措施保护用户数据和系统安全。但任何在线服务都无法保证绝对安全。',
+          '用户理解并接受通过互联网传输信息所带来的风险。',
+        ],
+      },
+      {
+        title: '10. 禁止使用',
+        body: [
+          '用户不得上传违法或侵权材料、干扰系统运行、逆向工程本服务、使用自动抓取或滥用机制、上传恶意代码，或尝试未经授权访问数据或基础设施。',
+          'QuoteWise 保留在发生违规时暂停或终止访问权限的权利。',
+        ],
+      },
+      {
+        title: '11. 责任限制',
+        body: [
+          '在法律允许的最大范围内，QuoteWise 不对间接损害、利润损失、采购损失、供应商争议、合同争议、价格差异、业务中断、对 AI 生成结果的依赖或不准确/不完整分析承担责任。',
+          '用户自行承担使用本服务的风险。',
+        ],
+      },
+      {
+        title: '12. 条款变更',
+        body: ['QuoteWise 可随时更新本条款。更新后的条款生效后继续使用本服务，即视为接受修订后的条款。'],
+      },
+      {
+        title: '13. 联系方式',
+        body: ['如对本条款有疑问，请联系：support@quotewise.ai'],
       },
     ],
   },
