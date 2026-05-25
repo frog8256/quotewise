@@ -1223,7 +1223,7 @@ function LoginModal({
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
   const [signupName, setSignupName] = useState('');
   const [signupCompany, setSignupCompany] = useState('');
-  const isLoginDisabled = !hasAcceptedTerms || isGoogleLoading || isEmailLoading;
+  const isLoginDisabled = isGoogleLoading || isEmailLoading;
   const isSignupDisabled = !hasAcceptedTerms || isEmailLoading;
   const authHeading =
     currentUser ? t.account : authMode === 'signup' ? labels.createAccountHeading : labels.loginHeading;
@@ -1243,7 +1243,7 @@ function LoginModal({
               {authHeading}
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">{authCopy}</p>
-            {!currentUser ? (
+            {!currentUser && authMode === 'signup' ? (
               <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-[#dbe5f1] bg-[#f8fbff] px-3 py-3 text-[13px] leading-5 text-slate-600 sm:text-sm">
                 <input
                   type="checkbox"
