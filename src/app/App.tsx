@@ -1529,7 +1529,9 @@ function LoginModal({
               className="space-y-3"
             >
               <label className="block">
-                <span className="mb-2 block text-sm font-semibold text-[#10243f]">{labels.displayName}</span>
+                <span className="mb-2 block text-sm font-semibold text-[#10243f]">
+                  {labels.displayName} <span className="text-rose-600">*</span>
+                </span>
                 <input
                   type="text"
                   value={signupName}
@@ -1550,7 +1552,9 @@ function LoginModal({
                 />
               </label>
               <label className="block">
-                <span className="mb-2 block text-sm font-semibold text-[#10243f]">{t.emailLabel}</span>
+                <span className="mb-2 block text-sm font-semibold text-[#10243f]">
+                  {t.emailLabel} <span className="text-rose-600">*</span>
+                </span>
                 <input
                   type="email"
                   value={email}
