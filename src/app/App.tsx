@@ -37,6 +37,26 @@ type CreateComparisonJobResponse = {
   jobId: string;
   guestAccessToken: string;
   expiresAt: string;
+  analysis?: QuoteAnalysis;
+};
+type QuoteAnalysisItem = {
+  item_label: string;
+  quote_a_value: string;
+  quote_b_value: string;
+  delta_value: string;
+  status: 'matched' | 'only_in_a' | 'only_in_b' | 'different_basis';
+  insight: string;
+};
+type QuoteAnalysis = {
+  title: string;
+  summary: string;
+  recommendedQuote: string;
+  estimatedSavings: number;
+  coverageGaps: number;
+  matchedLowerCount: number;
+  matchedCount: number;
+  items: QuoteAnalysisItem[];
+  insights: string[];
 };
 
 const authStorageKey = 'quotewise.user';
@@ -626,6 +646,7 @@ export default function App() {
   const [emailAuthMessage, setEmailAuthMessage] = useState('');
   const [isEmailAuthLoading, setIsEmailAuthLoading] = useState(false);
   const [isComparisonUploadLoading, setIsComparisonUploadLoading] = useState(false);
+  const [currentAnalysis, setCurrentAnalysis] = useState<QuoteAnalysis | null>(null);
   const t = copy[language];
   const accountText = accountLabels[language];
 
@@ -762,6 +783,7 @@ export default function App() {
 
   const showCompare = () => {
     setErrorMessage('');
+    setCurrentAnalysis(null);
     setActiveView('compare');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -968,6 +990,7 @@ export default function App() {
         return;
       }
 
+      setCurrentAnalysis(data.analysis || null);
       console.log('Comparison job created:', data.jobId);
       setActiveView('analyzing');
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1143,7 +1166,14 @@ export default function App() {
         {activeView === 'analyzing' ? <AnalyzingSection t={t} /> : null}
 
         {activeView === 'results' ? (
-          <ResultsSection t={t} language={language} file1={file1} file2={file2} onNewComparison={showCompare} />
+          <ResultsSection
+            t={t}
+            language={language}
+            file1={file1}
+            file2={file2}
+            analysis={currentAnalysis}
+            onNewComparison={showCompare}
+          />
         ) : null}
 
         {activeView === 'history' ? <HistorySection t={t} onStartComparison={showCompare} /> : null}
@@ -2375,16 +2405,44 @@ function ResultsSection({
   language,
   file1,
   file2,
+  analysis,
   onNewComparison,
 }: {
   t: (typeof copy)[Language];
   language: Language;
   file1: File | null;
   file2: File | null;
+  analysis: QuoteAnalysis | null;
   onNewComparison: () => void;
 }) {
+  const rows = analysis?.items.length
+    ? analysis.items
+    : resultRows.map((row) => ({
+        item_label: row.item,
+        quote_a_value: row.quoteA,
+        quote_b_value: row.quoteB,
+        delta_value: getDeltaValue(row, t),
+        status:
+          'basis' in row && row.basis === 'different'
+            ? ('different_basis' as const)
+            : row.deltaKey === 'onlyInA'
+              ? ('only_in_a' as const)
+              : row.deltaKey === 'onlyInB'
+                ? ('only_in_b' as const)
+                : ('matched' as const),
+        insight: row.note,
+      }));
+  const insights = analysis?.insights.length ? analysis.insights : t.insightItems;
+  const estimatedSavings = analysis ? `$${Math.round(analysis.estimatedSavings).toLocaleString('en-US')}` : '$190';
+  const recommendedQuote = analysis?.recommendedQuote || t.quoteB;
+  const matchedHelper = analysis
+    ? `${analysis.matchedLowerCount} of ${analysis.matchedCount} matched lines are lower`
+    : '3 of 4 matched lines are lower';
+  const coverageHelper = analysis
+    ? `${analysis.coverageGaps} items appear in only one quote`
+    : 'Items appear in only one quote';
   const handleDownloadReport = () => {
-    downloadAnalysisReport(t, file1, file2);
+    downloadAnalysisReport(t, file1, file2, analysis);
   };
 
   return (
@@ -2392,8 +2450,8 @@ function ResultsSection({
       <div className="mb-8 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="mb-3 text-sm font-bold uppercase tracking-[0.2em] text-[#2563eb]">{t.results}</p>
-          <h2 className="max-w-3xl text-4xl font-semibold text-[#10243f]">{t.resultsTitle}</h2>
-          <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-600">{t.resultsCopy}</p>
+          <h2 className="max-w-3xl text-4xl font-semibold text-[#10243f]">{analysis?.title || t.resultsTitle}</h2>
+          <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-600">{analysis?.summary || t.resultsCopy}</p>
         </div>
         <Button
           variant="outlined"
@@ -2420,9 +2478,9 @@ function ResultsSection({
       </div>
 
       <div className="mb-6 grid gap-4 md:grid-cols-3">
-        <MetricCard label={t.totalSavings} value="$190" helper="7.1% lower than Quote A" />
-        <MetricCard label={t.recommendedVendor} value={t.quoteB} helper="3 of 4 matched lines are lower" />
-        <MetricCard label={t.coverageGaps} value="2" helper="Items appear in only one quote" />
+        <MetricCard label={t.totalSavings} value={estimatedSavings} helper="Matched line-item delta" />
+        <MetricCard label={t.recommendedVendor} value={recommendedQuote} helper={matchedHelper} />
+        <MetricCard label={t.coverageGaps} value={String(analysis?.coverageGaps ?? 2)} helper={coverageHelper} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
@@ -2441,22 +2499,22 @@ function ResultsSection({
             <div className="text-right">{t.delta}</div>
           </div>
 
-          {resultRows.map((row) => (
+          {rows.map((row) => (
             <div
-              key={row.item}
+              key={`${row.item_label}-${row.quote_a_value}-${row.quote_b_value}`}
               className="grid grid-cols-[1.2fr_0.7fr_0.7fr_0.5fr] gap-4 border-b border-[#eef3f8] px-6 py-4 last:border-b-0"
             >
               <div>
-                <p className="font-semibold text-[#10243f]">{row.item}</p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">{row.note}</p>
+                <p className="font-semibold text-[#10243f]">{row.item_label}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">{row.insight}</p>
               </div>
-              <QuoteValue value={row.quoteA} />
-              <QuoteValue value={row.quoteB} />
+              <QuoteValue value={row.quote_a_value} />
+              <QuoteValue value={row.quote_b_value} />
               <DeltaValue
-                value={getDeltaValue(row, t)}
-                tone={row.tone}
-                color={'color' in row ? row.color : undefined}
-                stacked={'basis' in row && row.basis === 'different' && language === 'en'}
+                value={row.status === 'different_basis' && language !== 'en' ? t.differentBasis : row.delta_value}
+                tone={getAnalysisTone(row.status, row.delta_value)}
+                color={row.status === 'different_basis' ? '#DB2777' : undefined}
+                stacked={row.status === 'different_basis' && language === 'en'}
               />
             </div>
           ))}
@@ -2465,7 +2523,7 @@ function ResultsSection({
         <aside className="rounded-2xl border border-[#dbe5f1] bg-white p-6 shadow-[0_18px_42px_rgba(15,35,65,0.06)]">
           <h3 className="text-lg font-semibold text-[#10243f]">{t.keyInsights}</h3>
           <div className="mt-5 space-y-4">
-            {t.insightItems.map((item) => (
+            {insights.map((item) => (
               <div key={item} className="flex gap-3">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 flex-none text-emerald-600" />
                 <p className="text-sm leading-6 text-slate-600">{item}</p>
@@ -2474,7 +2532,9 @@ function ResultsSection({
           </div>
           <div className="mt-7 rounded-xl border border-[#b8c9df] bg-[#f8fbff] p-4">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">{t.recommendation}</p>
-            <p className="mt-2 text-lg font-bold text-[#1e3a5f]">{t.recommendationValue}</p>
+            <p className="mt-2 text-lg font-bold text-[#1e3a5f]">
+              {analysis ? `${recommendedQuote} saves ${estimatedSavings}` : t.recommendationValue}
+            </p>
           </div>
 
           <div className="mt-5 rounded-xl border border-[#dbe5f1] bg-white p-5">
@@ -2507,14 +2567,30 @@ function ResultsSection({
 }
 
 function QuoteValue({ value }: { value: string }) {
-  if (value === 'Not included') {
+  if (value === 'Not included' || value === '-') {
     return <div className="text-right text-lg font-semibold text-amber-600">-</div>;
   }
 
   return <div className="text-right font-semibold text-slate-700">{value}</div>;
 }
 
-function downloadAnalysisReport(t: (typeof copy)[Language], file1: File | null, file2: File | null) {
+function getAnalysisTone(status: QuoteAnalysisItem['status'], deltaValue: string) {
+  if (status === 'only_in_a') {
+    return 'text-amber-600';
+  }
+
+  if (status === 'only_in_b') {
+    return 'text-blue-600';
+  }
+
+  if (status === 'different_basis') {
+    return 'text-slate-700';
+  }
+
+  return deltaValue.startsWith('-') ? 'text-emerald-600' : deltaValue.startsWith('+') ? 'text-rose-600' : 'text-slate-600';
+}
+
+function downloadAnalysisReport(t: (typeof copy)[Language], file1: File | null, file2: File | null, analysis: QuoteAnalysis | null) {
   const reportWindow = window.open('', '_blank', 'noopener,noreferrer,width=960,height=1200');
 
   if (!reportWindow) {
@@ -2522,22 +2598,33 @@ function downloadAnalysisReport(t: (typeof copy)[Language], file1: File | null, 
   }
 
   const quotePair = `${file1?.name || t.selectedFirst} vs ${file2?.name || t.selectedSecond}`;
-  const rows = resultRows
+  const rows = (analysis?.items.length
+    ? analysis.items
+    : resultRows.map((row) => ({
+        item_label: row.item,
+        quote_a_value: row.quoteA === 'Not included' ? '-' : row.quoteA,
+        quote_b_value: row.quoteB === 'Not included' ? '-' : row.quoteB,
+        delta_value: getDeltaValue(row, t),
+        insight: row.note,
+      }))
+  )
     .map(
       (row) => `
         <tr>
           <td>
-            <strong>${escapeHtml(row.item)}</strong>
-            <span>${escapeHtml(row.note)}</span>
+            <strong>${escapeHtml(row.item_label)}</strong>
+            <span>${escapeHtml(row.insight)}</span>
           </td>
-          <td>${escapeHtml(row.quoteA === 'Not included' ? '-' : row.quoteA)}</td>
-          <td>${escapeHtml(row.quoteB === 'Not included' ? '-' : row.quoteB)}</td>
-          <td>${escapeHtml(getDeltaValue(row, t))}</td>
+          <td>${escapeHtml(row.quote_a_value)}</td>
+          <td>${escapeHtml(row.quote_b_value)}</td>
+          <td>${escapeHtml(row.delta_value)}</td>
         </tr>
       `,
     )
     .join('');
-  const insights = t.insightItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+  const insights = (analysis?.insights.length ? analysis.insights : t.insightItems)
+    .map((item) => `<li>${escapeHtml(item)}</li>`)
+    .join('');
 
   reportWindow.document.write(`
     <!doctype html>
