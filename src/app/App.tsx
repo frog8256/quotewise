@@ -1082,7 +1082,7 @@ function LoginModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#10243f]/40 px-5 backdrop-blur-sm">
       <div
         className={`w-full rounded-2xl border border-[#dbe5f1] bg-white p-6 shadow-[0_28px_80px_rgba(15,35,65,0.22)] ${
-          currentUser ? 'max-w-2xl' : 'max-w-md'
+          currentUser ? 'max-w-2xl' : 'max-w-lg'
         }`}
       >
         <div className="mb-6 flex items-start justify-between gap-4">
@@ -1095,14 +1095,14 @@ function LoginModal({
               {currentUser ? currentUser.email : t.loginCopy}
             </p>
             {!currentUser ? (
-              <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-[#dbe5f1] bg-[#f8fbff] p-3 text-sm leading-5 text-slate-600">
+              <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-[#dbe5f1] bg-[#f8fbff] px-3 py-3 text-[13px] leading-5 text-slate-600 sm:text-sm">
                 <input
                   type="checkbox"
                   checked={hasAcceptedTerms}
                   onChange={(event) => setHasAcceptedTerms(event.target.checked)}
-                  className="mt-1 h-4 w-4 cursor-pointer rounded border-[#c8d7eb] accent-[#2563eb]"
+                  className="h-4 w-4 shrink-0 cursor-pointer rounded border-[#c8d7eb] accent-[#2563eb]"
                 />
-                <span>
+                <span className="whitespace-nowrap">
                   {labels.termsAgreement}{' '}
                   <a href="#terms" className="font-bold text-[#2563eb] hover:text-[#1e3a5f]">
                     {labels.termsLink}
