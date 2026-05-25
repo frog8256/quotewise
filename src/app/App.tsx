@@ -1224,7 +1224,7 @@ function LoginModal({
   const [signupName, setSignupName] = useState('');
   const [signupCompany, setSignupCompany] = useState('');
   const isLoginDisabled = isGoogleLoading || isEmailLoading;
-  const isSignupDisabled = !hasAcceptedTerms || isEmailLoading;
+  const isSignupDisabled = !hasAcceptedTerms || !signupName.trim() || isEmailLoading;
   const authHeading =
     currentUser ? t.account : authMode === 'signup' ? labels.createAccountHeading : labels.loginHeading;
   const authCopy = currentUser ? currentUser.email : authMode === 'signup' ? labels.createAccountCopy : t.loginCopy;
@@ -1535,6 +1535,7 @@ function LoginModal({
                   value={signupName}
                   onChange={(event) => setSignupName(event.target.value)}
                   placeholder="Jane Procurement"
+                  required
                   className="h-11 w-full rounded-lg border border-[#c8d7eb] bg-white px-4 text-sm font-medium text-[#10243f] outline-none transition-colors placeholder:text-slate-400 focus:border-[#2563eb]"
                 />
               </label>
