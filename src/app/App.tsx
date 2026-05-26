@@ -2841,6 +2841,15 @@ function ResultsSection({
     downloadAnalysisReport(t, language, files, analysis);
   };
 
+  const handleDownloadExcel = () => {
+    if (!currentUser?.emailVerified) {
+      onRequireVerifiedEmail();
+      return;
+    }
+
+    downloadSummaryExcel(t, language, files, analysis);
+  };
+
   return (
     <>
     <section className="mx-auto max-w-7xl px-5 py-12 md:px-8 md:py-16">
@@ -2972,29 +2981,48 @@ function ResultsSection({
             <p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
               {getReportPageLabel(language, 6)}
             </p>
-            <Button
-              type="button"
-              variant="contained"
-              fullWidth
-              onClick={handleOpenReportPreview}
-              startIcon={<Download className="h-4 w-4" />}
-              sx={{
-                mt: 3,
-                py: 1.25,
-                backgroundColor: '#1e3a5f',
-                borderRadius: '10px',
-                cursor: 'pointer',
-                fontWeight: 700,
-                textTransform: 'none',
-                '&.Mui-disabled': {
-                  backgroundColor: '#cbd5e1',
-                  color: '#ffffff',
-                },
-                '&:hover': { backgroundColor: '#2563eb' },
-              }}
-            >
-              {t.reportDownload}
-            </Button>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Button
+                type="button"
+                variant="contained"
+                fullWidth
+                onClick={handleOpenReportPreview}
+                startIcon={<Download className="h-4 w-4" />}
+                sx={{
+                  py: 1.25,
+                  backgroundColor: '#1e3a5f',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  textTransform: 'none',
+                  '&.Mui-disabled': {
+                    backgroundColor: '#cbd5e1',
+                    color: '#ffffff',
+                  },
+                  '&:hover': { backgroundColor: '#2563eb' },
+                }}
+              >
+                {t.reportDownload}
+              </Button>
+              <Button
+                type="button"
+                variant="contained"
+                fullWidth
+                onClick={handleDownloadExcel}
+                startIcon={<Download className="h-4 w-4" />}
+                sx={{
+                  py: 1.25,
+                  backgroundColor: '#047857',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  textTransform: 'none',
+                  '&:hover': { backgroundColor: '#059669' },
+                }}
+              >
+                {getExcelDownloadText(language)}
+              </Button>
+            </div>
           </div>
         </aside>
       </div>
@@ -3007,6 +3035,7 @@ function ResultsSection({
         analysis={analysis}
         onClose={() => setIsReportPreviewOpen(false)}
         onDownload={handlePrintReport}
+        onDownloadExcel={handleDownloadExcel}
       />
     ) : null}
     </>
@@ -3020,6 +3049,7 @@ function ReportPreviewModal({
   analysis,
   onClose,
   onDownload,
+  onDownloadExcel,
 }: {
   t: (typeof copy)[Language];
   language: Language;
@@ -3027,6 +3057,7 @@ function ReportPreviewModal({
   analysis: QuoteAnalysis | null;
   onClose: () => void;
   onDownload: () => void;
+  onDownloadExcel: () => void;
 }) {
   const report = getReportModel(t, language, files, analysis);
   const lockedPages = Array.from({ length: 5 }, (_, index) => index + 2);
@@ -3109,26 +3140,46 @@ function ReportPreviewModal({
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-[#e7edf5] px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-t border-[#e7edf5] px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
           <p className="text-sm text-slate-500">{getReportPreviewNotice(language)}</p>
-          <Button
-            type="button"
-            variant="contained"
-            onClick={onDownload}
-            startIcon={<Download className="h-4 w-4" />}
-            sx={{
-              backgroundColor: '#1e3a5f',
-              borderRadius: '10px',
-              cursor: 'pointer',
-              fontWeight: 700,
-              px: 2.5,
-              py: 1.15,
-              textTransform: 'none',
-              '&:hover': { backgroundColor: '#2563eb' },
-            }}
-          >
-            {t.reportDownload}
-          </Button>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Button
+              type="button"
+              variant="contained"
+              onClick={onDownload}
+              startIcon={<Download className="h-4 w-4" />}
+              sx={{
+                backgroundColor: '#1e3a5f',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                fontWeight: 700,
+                px: 2.5,
+                py: 1.15,
+                textTransform: 'none',
+                '&:hover': { backgroundColor: '#2563eb' },
+              }}
+            >
+              {t.reportDownload}
+            </Button>
+            <Button
+              type="button"
+              variant="contained"
+              onClick={onDownloadExcel}
+              startIcon={<Download className="h-4 w-4" />}
+              sx={{
+                backgroundColor: '#047857',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                fontWeight: 700,
+                px: 2.5,
+                py: 1.15,
+                textTransform: 'none',
+                '&:hover': { backgroundColor: '#059669' },
+              }}
+            >
+              {getExcelDownloadText(language)}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -3388,6 +3439,71 @@ function getReportPreviewNotice(language: Language) {
   return 'For the MVP, PDF export uses your browser print dialog.';
 }
 
+function getExcelDownloadText(language: Language) {
+  if (language === 'ko') return 'Excel 다운로드';
+  if (language === 'ja') return 'Excelをダウンロード';
+  if (language === 'zh') return '下载 Excel';
+  return 'Download Excel';
+}
+
+function downloadSummaryExcel(t: (typeof copy)[Language], language: Language, files: File[], analysis: QuoteAnalysis | null) {
+  const report = getReportModel(t, language, files, analysis);
+  const vendorHeaders = report.vendors.map((vendor) => `<th>${escapeHtml(vendor)}</th>`).join('');
+  const rows = report.rows.length
+    ? report.rows
+        .map(
+          (row) => `
+            <tr>
+              <td>${escapeHtml(row.itemLabel)}</td>
+              ${row.cells.map((cell) => `<td>${escapeHtml(cell.value)}</td>`).join('')}
+              <td>${escapeHtml(row.delta)}</td>
+            </tr>
+          `,
+        )
+        .join('')
+    : `
+        <tr>
+          <td colspan="${report.vendors.length + 2}">${escapeHtml(getNoDataText(language))}</td>
+        </tr>
+      `;
+  const workbook = `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          table { border-collapse: collapse; font-family: Arial, sans-serif; }
+          th, td { border: 1px solid #d9e2ef; padding: 8px 10px; mso-number-format:"\\@"; }
+          th { background: #eaf2ff; color: #10243f; font-weight: 700; }
+          .title { font-size: 18px; font-weight: 700; color: #10243f; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <tr><td class="title" colspan="${report.vendors.length + 2}">${escapeHtml(t.summary)}</td></tr>
+          <tr></tr>
+          <tr>
+            <th>${escapeHtml(t.previewHeaders[0])}</th>
+            ${vendorHeaders}
+            <th>${escapeHtml(t.delta)}</th>
+          </tr>
+          ${rows}
+        </table>
+      </body>
+    </html>
+  `;
+  const blob = new Blob(['\ufeff', workbook], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+
+  anchor.href = url;
+  anchor.download = `${sanitizeFilename(report.title || 'quotewise-summary')}.xls`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
 function downloadAnalysisReport(t: (typeof copy)[Language], language: Language, files: File[], analysis: QuoteAnalysis | null) {
   const reportWindow = window.open('', '_blank', 'noopener,noreferrer,width=960,height=1200');
 
@@ -3620,6 +3736,16 @@ function escapeHtml(value: string) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+function sanitizeFilename(value: string) {
+  const cleaned = value
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .replace(/\s+/g, ' ')
+    .slice(0, 80);
+
+  return cleaned || 'quotewise-summary';
 }
 
 function getDeltaValue(row: (typeof resultRows)[number], t: (typeof copy)[Language]) {
