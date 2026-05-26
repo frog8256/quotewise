@@ -3466,6 +3466,21 @@ function downloadSummaryExcel(t: (typeof copy)[Language], language: Language, fi
           <td colspan="${report.vendors.length + 2}">${escapeHtml(getNoDataText(language))}</td>
         </tr>
       `;
+  const insightRows = report.insights.length
+    ? report.insights
+        .map(
+          (insight) => `
+            <tr>
+              <td colspan="${report.vendors.length + 2}">${escapeHtml(insight)}</td>
+            </tr>
+          `,
+        )
+        .join('')
+    : `
+        <tr>
+          <td colspan="${report.vendors.length + 2}">${escapeHtml(getNoDataText(language))}</td>
+        </tr>
+      `;
   const workbook = `
     <!doctype html>
     <html>
@@ -3488,6 +3503,9 @@ function downloadSummaryExcel(t: (typeof copy)[Language], language: Language, fi
             <th>${escapeHtml(t.delta)}</th>
           </tr>
           ${rows}
+          <tr></tr>
+          <tr><td class="title" colspan="${report.vendors.length + 2}">${escapeHtml(t.keyInsights)}</td></tr>
+          ${insightRows}
         </table>
       </body>
     </html>
