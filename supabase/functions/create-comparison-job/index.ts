@@ -145,7 +145,7 @@ async function createCacheKey(
 ) {
   return sha256(
     JSON.stringify({
-      version: 2,
+      version: 3,
       model: 'gpt-4.1-mini',
       language,
       files: fingerprints.map((item) => ({
@@ -314,7 +314,7 @@ async function compareExtractedQuotesWithOpenAI(
         {
           role: 'system',
           content:
-            `You are QuoteWise, an expert procurement quotation analyst. Compare already-extracted supplier quotation data. Normalize item terminology, compare prices, detect missing/hidden costs, detect pricing-basis differences, and identify risk factors. Return only valid JSON. Write all user-facing analysis text in ${outputLanguage}. Keep vendor names and rawTerm exactly as written in the extracted data.`,
+            `You are QuoteWise, an expert procurement quotation analyst. Compare already-extracted supplier quotation data. Normalize item terminology, compare prices, detect missing/hidden costs, detect pricing-basis differences, and identify risk factors. Return only valid JSON. Write all user-facing analysis text in ${outputLanguage}. This includes title, summary, item_label, each row insight, delta_value, insights, and risks. Keep vendor names and rawTerm exactly as written in the extracted data.`,
         },
         {
           role: 'user',
@@ -322,7 +322,7 @@ async function compareExtractedQuotesWithOpenAI(
             {
               type: 'input_text',
               text:
-                `Compare this extracted quotation JSON. Extracted data: ${JSON.stringify(extractedQuotes)}. Normalize equivalent item names into one item_label in ${outputLanguage}, but preserve each quote's original term in rawTerm exactly as written. Include all vendors A-E that are provided. For each item, provide each vendor cell with value, rawTerm, included, and pricingBasis. Detect only-in-vendor items, different pricing basis, hidden costs, missing items, and risk factors. Write title, summary, item_label, delta_value, insight, insights, and risks in ${outputLanguage}. Keep rawTerm and vendor names untranslated. Use this JSON shape exactly: {"title":string,"summary":string,"recommendedQuote":string,"estimatedSavings":number,"coverageGaps":number,"matchedLowerCount":number,"matchedCount":number,"vendors":[{"side":"A","name":string,"filename":string}],"items":[{"item_label":string,"cells":[{"vendorSide":"A","value":string,"rawTerm":string,"included":boolean,"pricingBasis":string}],"delta_value":string,"status":"matched|only_in_a|only_in_b|different_basis","insight":string,"sort_order":number}],"insights":[string],"risks":[string]}.`,
+                `Compare this extracted quotation JSON. Extracted data: ${JSON.stringify(extractedQuotes)}. Normalize equivalent item names into one item_label in ${outputLanguage}, but preserve each quote's original term in rawTerm exactly as written. Include all vendors A-E that are provided. For each item, provide each vendor cell with value, rawTerm, included, and pricingBasis. Detect only-in-vendor items, different pricing basis, hidden costs, missing items, and risk factors. Write title, summary, item_label, delta_value, every item insight, insights, and risks in ${outputLanguage}. Keep rawTerm and vendor names untranslated. The gray row description shown under each item is the insight field, so it must be in ${outputLanguage}. Use this JSON shape exactly: {"title":string,"summary":string,"recommendedQuote":string,"estimatedSavings":number,"coverageGaps":number,"matchedLowerCount":number,"matchedCount":number,"vendors":[{"side":"A","name":string,"filename":string}],"items":[{"item_label":string,"cells":[{"vendorSide":"A","value":string,"rawTerm":string,"included":boolean,"pricingBasis":string}],"delta_value":string,"status":"matched|only_in_a|only_in_b|different_basis","insight":string,"sort_order":number}],"insights":[string],"risks":[string]}.`,
             },
           ],
         },

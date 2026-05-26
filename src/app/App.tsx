@@ -633,6 +633,12 @@ const resultRows = [
     quoteB: '$2,280',
     delta: '-$120',
     note: 'Quote B is lower with equivalent workstation specs.',
+    notes: {
+      en: 'Quote B is lower with equivalent workstation specs.',
+      ko: '동등한 워크스테이션 사양 기준으로 견적 B가 더 저렴합니다.',
+      ja: '同等のワークステーション仕様では見積 Bの方が低価格です。',
+      zh: '在同等工作站规格下，报价 B 更低。',
+    },
     tone: 'text-emerald-600',
   },
   {
@@ -641,6 +647,12 @@ const resultRows = [
     quoteB: '$620',
     delta: '+$40',
     note: 'Quote A is cheaper for the display line.',
+    notes: {
+      en: 'Quote A is cheaper for the display line.',
+      ko: '디스플레이 항목은 견적 A가 더 저렴합니다.',
+      ja: 'ディスプレイ項目は見積 Aの方が安価です。',
+      zh: '显示器项目中，报价 A 更便宜。',
+    },
     tone: 'text-rose-600',
   },
   {
@@ -649,6 +661,12 @@ const resultRows = [
     quoteB: '$150',
     delta: '-$50',
     note: 'Quote B reduces implementation cost.',
+    notes: {
+      en: 'Quote B reduces implementation cost.',
+      ko: '견적 B가 설치/구현 비용을 낮춥니다.',
+      ja: '見積 Bは導入コストを抑えます。',
+      zh: '报价 B 降低了实施成本。',
+    },
     tone: 'text-emerald-600',
   },
   {
@@ -657,6 +675,12 @@ const resultRows = [
     quoteB: '$690',
     delta: '-$30',
     note: 'Quote B offers lower support pricing.',
+    notes: {
+      en: 'Quote B offers lower support pricing.',
+      ko: '견적 B의 지원 비용이 더 낮습니다.',
+      ja: '見積 Bのサポート価格がより低くなっています。',
+      zh: '报价 B 的支持费用更低。',
+    },
     tone: 'text-emerald-600',
   },
   {
@@ -666,6 +690,12 @@ const resultRows = [
     delta: 'Only in A',
     deltaKey: 'onlyInA',
     note: 'Quote A includes this installation accessory as a separate line item.',
+    notes: {
+      en: 'Quote A includes this installation accessory as a separate line item.',
+      ko: '견적 A에는 이 설치 부속품이 별도 항목으로 포함되어 있습니다.',
+      ja: '見積 Aにはこの設置付属品が別明細として含まれています。',
+      zh: '报价 A 将该安装配件作为单独项目列出。',
+    },
     tone: 'text-amber-600',
   },
   {
@@ -675,6 +705,12 @@ const resultRows = [
     delta: 'Only in B',
     deltaKey: 'onlyInB',
     note: 'Quote B includes priority delivery as a separate charge.',
+    notes: {
+      en: 'Quote B includes priority delivery as a separate charge.',
+      ko: '견적 B에는 우선 배송이 별도 비용으로 포함되어 있습니다.',
+      ja: '見積 Bには優先配送が別料金として含まれています。',
+      zh: '报价 B 将优先配送作为单独费用列出。',
+    },
     tone: 'text-blue-600',
   },
   {
@@ -683,6 +719,12 @@ const resultRows = [
     quoteB: '$300 fixed',
     delta: 'basis',
     note: 'Quote A prices freight by weight, while Quote B uses a fixed freight charge.',
+    notes: {
+      en: 'Quote A prices freight by weight, while Quote B uses a fixed freight charge.',
+      ko: '견적 A는 중량 기준 운송비이고, 견적 B는 고정 운송비입니다.',
+      ja: '見積 Aは重量基準の運送費で、見積 Bは固定運送費です。',
+      zh: '报价 A 按重量计算运费，而报价 B 使用固定运费。',
+    },
     tone: 'text-slate-700',
     color: '#DB2777',
     basis: 'different',
@@ -2758,7 +2800,7 @@ function ResultsSection({
               : row.deltaKey === 'onlyInB'
                 ? ('only_in_b' as const)
                 : ('matched' as const),
-        insight: row.note,
+        insight: row.notes?.[language] || row.note,
       }));
   const insights = analysis?.insights.length ? [...analysis.insights, ...(analysis.risks || [])] : t.insightItems;
   const estimatedSavings = analysis ? `$${Math.round(analysis.estimatedSavings).toLocaleString('en-US')}` : '$190';
