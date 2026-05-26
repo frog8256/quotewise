@@ -1176,7 +1176,8 @@ export default function App() {
 
       if (error || !data?.jobId) {
         setErrorMessage(error?.message || 'Failed to upload quotation files.');
-        setActiveView('compare');
+        setCurrentAnalysis(null);
+        setActiveView('results');
         return;
       }
 
@@ -1187,7 +1188,8 @@ export default function App() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Failed to upload quotation files.');
-      setActiveView('compare');
+      setCurrentAnalysis(null);
+      setActiveView('results');
     } finally {
       stageTimers.forEach((timer) => window.clearTimeout(timer));
       setIsComparisonUploadLoading(false);
@@ -1365,6 +1367,7 @@ export default function App() {
             language={language}
             files={uploadedFiles}
             analysis={currentAnalysis}
+            errorMessage={errorMessage}
             currentUser={currentUser}
             onRequireVerifiedEmail={() => {
               if (!currentUser) {
@@ -2771,6 +2774,7 @@ function ResultsSection({
   language,
   files,
   analysis,
+  errorMessage,
   currentUser,
   onRequireVerifiedEmail,
   onNewComparison,
@@ -2779,6 +2783,7 @@ function ResultsSection({
   language: Language;
   files: File[];
   analysis: QuoteAnalysis | null;
+  errorMessage: string;
   currentUser: UserSession | null;
   onRequireVerifiedEmail: () => void;
   onNewComparison: () => void;
@@ -2786,47 +2791,34 @@ function ResultsSection({
   const vendors =
     analysis?.vendors?.length
       ? analysis.vendors
-      : [
-          { side: 'A' as const, name: t.quoteA, filename: files[0]?.name || t.selectedFirst },
-          { side: 'B' as const, name: t.quoteB, filename: files[1]?.name || t.selectedSecond },
-        ];
-  const rows = analysis?.items.length
-    ? analysis.items
-    : resultRows.map((row) => ({
-        item_label: row.item,
-        cells: [
-          { vendorSide: 'A' as const, value: row.quoteA, rawTerm: row.item, included: row.quoteA !== 'Not included' },
-          { vendorSide: 'B' as const, value: row.quoteB, rawTerm: row.item, included: row.quoteB !== 'Not included' },
-        ],
-        quote_a_value: row.quoteA,
-        quote_b_value: row.quoteB,
-        delta_value: getDeltaValue(row, t),
-        status:
-          'basis' in row && row.basis === 'different'
-            ? ('different_basis' as const)
-            : row.deltaKey === 'onlyInA'
-              ? ('only_in_a' as const)
-              : row.deltaKey === 'onlyInB'
-                ? ('only_in_b' as const)
-                : ('matched' as const),
-        insight: row.notes?.[language] || row.note,
-      }));
-  const title = getLocalizedText(analysis?.title_i18n, language, analysis?.title || t.resultsTitle);
-  const summary = getLocalizedText(analysis?.summary_i18n, language, analysis?.summary || t.resultsCopy);
+      : [];
+  const rows = analysis?.items?.length ? analysis.items : [];
+  const hasAnalysis = Boolean(analysis);
+  const hasRows = rows.length > 0;
+  const title = errorMessage
+    ? 'Error'
+    : hasAnalysis
+      ? getLocalizedText(analysis?.title_i18n, language, analysis?.title || 'No data')
+      : 'No data';
+  const summary = errorMessage
+    ? errorMessage
+    : hasAnalysis
+      ? getLocalizedText(analysis?.summary_i18n, language, analysis?.summary || 'No data')
+      : 'No data';
   const insights = analysis
     ? [
         ...getLocalizedList(analysis.insights_i18n, language, analysis.insights),
         ...getLocalizedList(analysis.risks_i18n, language, analysis.risks || []),
       ]
-    : t.insightItems;
-  const estimatedSavings = analysis ? `$${Math.round(analysis.estimatedSavings).toLocaleString('en-US')}` : '$190';
-  const recommendedQuote = analysis?.recommendedQuote || t.quoteB;
+    : [];
+  const estimatedSavings = analysis ? `$${Math.round(analysis.estimatedSavings).toLocaleString('en-US')}` : '-';
+  const recommendedQuote = analysis?.recommendedQuote || '-';
   const recommendationValue = analysis
     ? getLocalizedText(analysis.recommendation_i18n, language, buildRecommendationText(language, recommendedQuote, estimatedSavings))
     : t.recommendationValue;
   const matchedHelper = analysis
     ? `${analysis.matchedLowerCount} / ${analysis.matchedCount} ${t.matchedLinesLower}`
-    : `3 / 4 ${t.matchedLinesLower}`;
+    : 'No data';
   const coverageHelper = t.coverageItemsHelper;
   const handleDownloadReport = () => {
     if (!currentUser?.emailVerified) {
@@ -2888,57 +2880,73 @@ function ResultsSection({
 
           <div
             className="grid gap-4 border-b border-[#eef3f8] px-6 py-4 text-sm font-bold text-slate-500"
-            style={{ gridTemplateColumns: `minmax(180px,1.15fr) repeat(${vendors.length}, minmax(120px,0.8fr)) minmax(110px,0.6fr)` }}
+            style={{ gridTemplateColumns: `minmax(180px,1.15fr) repeat(${Math.max(vendors.length, 1)}, minmax(120px,0.8fr)) minmax(110px,0.6fr)` }}
           >
             <div>{t.previewHeaders[0]}</div>
-            {vendors.map((vendor) => (
-              <div key={vendor.side} className="text-right">
-                {vendor.name}
-              </div>
-            ))}
+            {vendors.length ? (
+              vendors.map((vendor) => (
+                <div key={vendor.side} className="text-right">
+                  {vendor.name}
+                </div>
+              ))
+            ) : (
+              <div className="text-right">No data</div>
+            )}
             <div className="text-right">{t.delta}</div>
           </div>
 
-          {rows.map((row) => (
-            <div
-              key={`${row.item_label}-${row.delta_value}`}
-              className="grid gap-4 border-b border-[#eef3f8] px-6 py-4 last:border-b-0"
-              style={{ gridTemplateColumns: `minmax(180px,1.15fr) repeat(${vendors.length}, minmax(120px,0.8fr)) minmax(110px,0.6fr)` }}
-            >
-              <div>
-                <p className="font-semibold text-[#10243f]">{getLocalizedText(row.item_label_i18n, language, row.item_label)}</p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">{getLocalizedText(row.insight_i18n, language, row.insight)}</p>
-              </div>
-              {vendors.map((vendor) => {
-                const cell = row.cells?.find((item) => item.vendorSide === vendor.side);
+          {errorMessage ? (
+            <EmptyResultRow message="Error" detail={errorMessage} />
+          ) : !hasRows ? (
+            <EmptyResultRow message="No data" />
+          ) : (
+            rows.map((row) => (
+              <div
+                key={`${row.item_label}-${row.delta_value}`}
+                className="grid gap-4 border-b border-[#eef3f8] px-6 py-4 last:border-b-0"
+                style={{ gridTemplateColumns: `minmax(180px,1.15fr) repeat(${vendors.length}, minmax(120px,0.8fr)) minmax(110px,0.6fr)` }}
+              >
+                <div>
+                  <p className="font-semibold text-[#10243f]">{getLocalizedText(row.item_label_i18n, language, row.item_label)}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">{getLocalizedText(row.insight_i18n, language, row.insight)}</p>
+                </div>
+                {vendors.map((vendor) => {
+                  const cell = row.cells?.find((item) => item.vendorSide === vendor.side);
 
-                return (
-                  <QuoteValue
-                    key={vendor.side}
-                    value={cell?.included === false ? '-' : cell?.value || '-'}
-                    rawTerm={cell?.rawTerm}
-                  />
-                );
-              })}
-              <DeltaValue
-                value={getDeltaDisplayValue(row, language, t)}
-                tone={getAnalysisTone(row.status, row.delta_value, row.delta_status)}
-                color={row.status === 'different_basis' ? '#DB2777' : undefined}
-                stacked={row.status === 'different_basis' && language === 'en'}
-              />
-            </div>
-          ))}
+                  return (
+                    <QuoteValue
+                      key={vendor.side}
+                      value={cell?.included === false ? '-' : cell?.value || '-'}
+                      rawTerm={cell?.rawTerm}
+                    />
+                  );
+                })}
+                <DeltaValue
+                  value={getDeltaDisplayValue(row, language, t)}
+                  tone={getAnalysisTone(row.status, row.delta_value, row.delta_status)}
+                  color={row.status === 'different_basis' || row.delta_status === 'different_basis' ? '#DB2777' : undefined}
+                  stacked={(row.status === 'different_basis' || row.delta_status === 'different_basis') && language === 'en'}
+                />
+              </div>
+            ))
+          )}
         </div>
 
         <aside className="rounded-2xl border border-[#dbe5f1] bg-white p-6 shadow-[0_18px_42px_rgba(15,35,65,0.06)]">
           <h3 className="text-lg font-semibold text-[#10243f]">{t.keyInsights}</h3>
           <div className="mt-5 space-y-4">
-            {insights.map((item) => (
-              <div key={item} className="flex gap-3">
-                <CheckCircle2 className="mt-0.5 h-5 w-5 flex-none text-emerald-600" />
-                <p className="text-sm leading-6 text-slate-600">{item}</p>
-              </div>
-            ))}
+            {errorMessage ? (
+              <p className="text-sm leading-6 text-rose-600">Error</p>
+            ) : insights.length ? (
+              insights.map((item) => (
+                <div key={item} className="flex gap-3">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 flex-none text-emerald-600" />
+                  <p className="text-sm leading-6 text-slate-600">{item}</p>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm leading-6 text-slate-500">No data</p>
+            )}
           </div>
           <div className="mt-7 rounded-xl border border-[#b8c9df] bg-[#f8fbff] p-4">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">{t.recommendation}</p>
@@ -2992,6 +3000,15 @@ function QuoteValue({ value, rawTerm }: { value: string; rawTerm?: string }) {
     <div className="text-right">
       <p className="font-semibold text-slate-700">{value}</p>
       {rawTerm ? <p className="mt-1 text-xs font-medium text-slate-400">{rawTerm}</p> : null}
+    </div>
+  );
+}
+
+function EmptyResultRow({ message, detail }: { message: string; detail?: string }) {
+  return (
+    <div className="border-b border-[#eef3f8] px-6 py-10 text-center last:border-b-0">
+      <p className="text-base font-semibold text-[#10243f]">{message}</p>
+      {detail ? <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-500">{detail}</p> : null}
     </div>
   );
 }
@@ -3056,6 +3073,10 @@ function getAnalysisTone(status: QuoteAnalysisItem['status'], deltaValue: string
   }
 
   if (status === 'different_basis') {
+    return 'text-slate-700';
+  }
+
+  if (deltaStatus === 'different_basis') {
     return 'text-slate-700';
   }
 
