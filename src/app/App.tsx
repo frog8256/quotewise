@@ -2795,16 +2795,18 @@ function ResultsSection({
   const rows = analysis?.items?.length ? analysis.items : [];
   const hasAnalysis = Boolean(analysis);
   const hasRows = rows.length > 0;
+  const noDataText = getNoDataText(language);
+  const errorText = getErrorText(language);
   const title = errorMessage
-    ? 'Error'
+    ? errorText
     : hasAnalysis
-      ? getLocalizedText(analysis?.title_i18n, language, analysis?.title || 'No data')
-      : 'No data';
+      ? getLocalizedText(analysis?.title_i18n, language, analysis?.title || noDataText)
+      : noDataText;
   const summary = errorMessage
     ? errorMessage
     : hasAnalysis
-      ? getLocalizedText(analysis?.summary_i18n, language, analysis?.summary || 'No data')
-      : 'No data';
+      ? getLocalizedText(analysis?.summary_i18n, language, analysis?.summary || noDataText)
+      : noDataText;
   const insights = analysis
     ? [
         ...getLocalizedList(analysis.insights_i18n, language, analysis.insights),
@@ -2818,7 +2820,7 @@ function ResultsSection({
     : t.recommendationValue;
   const matchedHelper = analysis
     ? `${analysis.matchedLowerCount} / ${analysis.matchedCount} ${t.matchedLinesLower}`
-    : 'No data';
+    : noDataText;
   const coverageHelper = t.coverageItemsHelper;
   const handleDownloadReport = () => {
     if (!currentUser?.emailVerified) {
@@ -2890,15 +2892,15 @@ function ResultsSection({
                 </div>
               ))
             ) : (
-              <div className="text-right">No data</div>
+              <div className="text-right">{noDataText}</div>
             )}
             <div className="text-right">{t.delta}</div>
           </div>
 
           {errorMessage ? (
-            <EmptyResultRow message="Error" detail={errorMessage} />
+            <EmptyResultRow message={errorText} detail={errorMessage} />
           ) : !hasRows ? (
-            <EmptyResultRow message="No data" />
+            <EmptyResultRow message={noDataText} />
           ) : (
             rows.map((row) => (
               <div
@@ -2936,7 +2938,7 @@ function ResultsSection({
           <h3 className="text-lg font-semibold text-[#10243f]">{t.keyInsights}</h3>
           <div className="mt-5 space-y-4">
             {errorMessage ? (
-              <p className="text-sm leading-6 text-rose-600">Error</p>
+              <p className="text-sm leading-6 text-rose-600">{errorText}</p>
             ) : insights.length ? (
               insights.map((item) => (
                 <div key={item} className="flex gap-3">
@@ -2945,7 +2947,7 @@ function ResultsSection({
                 </div>
               ))
             ) : (
-              <p className="text-sm leading-6 text-slate-500">No data</p>
+              <p className="text-sm leading-6 text-slate-500">{noDataText}</p>
             )}
           </div>
           <div className="mt-7 rounded-xl border border-[#b8c9df] bg-[#f8fbff] p-4">
@@ -3035,6 +3037,38 @@ function buildRecommendationText(language: Language, recommendedQuote: string, e
   }
 
   return `${recommendedQuote} saves ${estimatedSavings}`;
+}
+
+function getNoDataText(language: Language) {
+  if (language === 'ko') {
+    return '데이터 없음';
+  }
+
+  if (language === 'ja') {
+    return 'データなし';
+  }
+
+  if (language === 'zh') {
+    return '无数据';
+  }
+
+  return 'No data';
+}
+
+function getErrorText(language: Language) {
+  if (language === 'ko') {
+    return '오류';
+  }
+
+  if (language === 'ja') {
+    return 'エラー';
+  }
+
+  if (language === 'zh') {
+    return '错误';
+  }
+
+  return 'Error';
 }
 
 function getDeltaDisplayValue(row: QuoteAnalysisItem, language: Language, t: (typeof copy)[Language]) {
