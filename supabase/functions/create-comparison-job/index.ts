@@ -8,9 +8,11 @@ const corsHeaders = {
 };
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
+const MAX_UPLOAD_FILES = 5;
 const GUEST_EXPIRY_HOURS = 24;
+const SIDES: UploadedSide[] = ['A', 'B', 'C', 'D', 'E'];
 
-type UploadedSide = 'A' | 'B';
+type UploadedSide = 'A' | 'B' | 'C' | 'D' | 'E';
 type ParsedQuoteItem = {
   itemName: string;
   rawText: string;
@@ -401,11 +403,24 @@ Deno.serve(async (req) => {
     });
 
     const formData = await req.formData();
-    const quoteA = formData.get('quoteA') as File | null;
-    const quoteB = formData.get('quoteB') as File | null;
+    const quoteFiles = formData
+      .getAll('quoteFiles')
+      .filter((value): value is File => value instanceof File);
+    const legacyQuoteA = formData.get('quoteA') as File | null;
+    const legacyQuoteB = formData.get('quoteB') as File | null;
+    const incomingFiles = quoteFiles.length ? quoteFiles : [legacyQuoteA, legacyQuoteB].filter((file): file is File => Boolean(file));
 
-    assertPdf(quoteA, 'quoteA');
-    assertPdf(quoteB, 'quoteB');
+    if (incomingFiles.length < 2) {
+      throw new Error('At least 2 PDF files are required.');
+    }
+
+    if (incomingFiles.length > MAX_UPLOAD_FILES) {
+      throw new Error(`Up to ${MAX_UPLOAD_FILES} PDF files can be uploaded.`);
+    }
+
+    incomingFiles.forEach((file, index) => {
+      assertPdf(file, `quoteFiles[${index}]`);
+    });
 
     const guestAccessToken = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + GUEST_EXPIRY_HOURS * 60 * 60 * 1000).toISOString();
@@ -414,8 +429,8 @@ Deno.serve(async (req) => {
       .from('comparison_jobs')
       .insert({
         status: 'uploaded',
-        quote_a_name: quoteA.name,
-        quote_b_name: quoteB.name,
+        quote_a_name: incomingFiles[0].name,
+        quote_b_name: incomingFiles[1].name,
         is_guest: true,
         guest_access_token: guestAccessToken,
         expires_at: expiresAt,
@@ -429,13 +444,21 @@ Deno.serve(async (req) => {
 
     jobId = job.id;
 
-    const files: Array<{ side: UploadedSide; file: File; storagePath: string }> = [
-      { side: 'A', file: quoteA, storagePath: `guests/${job.id}/quote-a.pdf` },
-      { side: 'B', file: quoteB, storagePath: `guests/${job.id}/quote-b.pdf` },
-    ];
+    const files: Array<{ side: UploadedSide; file: File; storagePath: string }> = incomingFiles.map((file, index) => {
+      const side = SIDES[index];
+
+      return {
+        side,
+        file,
+        storagePath: `guests/${job.id}/quote-${side.toLowerCase()}.pdf`,
+      };
+    });
     const extractedText: Record<UploadedSide, string> = {
       A: '',
       B: '',
+      C: '',
+      D: '',
+      E: '',
     };
 
     for (const item of files) {
@@ -475,24 +498,23 @@ Deno.serve(async (req) => {
       throw new Error(filesError.message);
     }
 
-    const quoteItemPayload = [
-      ...quoteAItems.map((item) => ({
+    const parsedItemsBySide: Record<UploadedSide, ParsedQuoteItem[]> = {
+      A: quoteAItems,
+      B: quoteBItems,
+      C: parseQuoteItems(extractedText.C),
+      D: parseQuoteItems(extractedText.D),
+      E: parseQuoteItems(extractedText.E),
+    };
+    const quoteItemPayload = files.flatMap(({ side }) =>
+      parsedItemsBySide[side].map((item) => ({
           job_id: job.id,
-          side: 'A',
+          side,
           item_name: item.itemName,
           total_price: item.totalPrice,
           pricing_basis: item.pricingBasis,
           raw_text: item.rawText,
-        })),
-      ...quoteBItems.map((item) => ({
-          job_id: job.id,
-          side: 'B',
-          item_name: item.itemName,
-          total_price: item.totalPrice,
-          pricing_basis: item.pricingBasis,
-          raw_text: item.rawText,
-        })),
-    ];
+      })),
+    );
     let quoteItemRowCount = 0;
 
     if (quoteItemPayload.length > 0) {

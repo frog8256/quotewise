@@ -101,6 +101,10 @@ const copy = {
     uploadFirst: 'Upload first quotation',
     uploadSecond: 'Upload second quotation',
     uploadHelp: 'Choose a PDF file or drag it here.',
+    uploadMultipleTitle: 'Upload quotation PDFs',
+    uploadMultipleHelp: 'Choose 2 to 5 PDF files.',
+    uploadedFilesTitle: 'Uploaded files',
+    uploadedFilesEmpty: 'No files selected yet.',
     selectedFirst: 'Quotation 1',
     selectedSecond: 'Quotation 2',
     analyze: 'Start comparison analysis',
@@ -207,6 +211,10 @@ const copy = {
     uploadFirst: '첫 번째 견적서 업로드',
     uploadSecond: '두 번째 견적서 업로드',
     uploadHelp: 'PDF 파일을 선택하거나 여기에 끌어다 놓으세요.',
+    uploadMultipleTitle: '견적서 PDF 업로드',
+    uploadMultipleHelp: 'PDF 파일을 2개에서 최대 5개까지 선택하세요.',
+    uploadedFilesTitle: '업로드한 파일',
+    uploadedFilesEmpty: '아직 선택한 파일이 없습니다.',
     selectedFirst: '견적서 1',
     selectedSecond: '견적서 2',
     analyze: '비교 분석 시작하기',
@@ -296,6 +304,10 @@ const copy = {
     uploadFirst: '1つ目の見積書をアップロード',
     uploadSecond: '2つ目の見積書をアップロード',
     uploadHelp: 'PDFファイルを選択するか、ここにドラッグしてください。',
+    uploadMultipleTitle: '見積書PDFをアップロード',
+    uploadMultipleHelp: 'PDFファイルを2〜5件選択してください。',
+    uploadedFilesTitle: 'アップロード済みファイル',
+    uploadedFilesEmpty: 'まだファイルが選択されていません。',
     selectedFirst: '見積書 1',
     selectedSecond: '見積書 2',
     analyze: '比較分析を開始',
@@ -385,6 +397,10 @@ const copy = {
     uploadFirst: '上传第一份报价',
     uploadSecond: '上传第二份报价',
     uploadHelp: '选择 PDF 文件或拖放到这里。',
+    uploadMultipleTitle: '上传报价 PDF',
+    uploadMultipleHelp: '请选择 2 到 5 个 PDF 文件。',
+    uploadedFilesTitle: '已上传文件',
+    uploadedFilesEmpty: '尚未选择文件。',
     selectedFirst: '报价 1',
     selectedSecond: '报价 2',
     analyze: '开始比较分析',
@@ -648,8 +664,7 @@ const resultRows = [
 export default function App() {
   const [activeView, setActiveView] = useState<ActiveView>('home');
   const [language, setLanguage] = useState<Language>('en');
-  const [file1, setFile1] = useState<File | null>(null);
-  const [file2, setFile2] = useState<File | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -669,6 +684,8 @@ export default function App() {
   const [isEmailAuthLoading, setIsEmailAuthLoading] = useState(false);
   const [isComparisonUploadLoading, setIsComparisonUploadLoading] = useState(false);
   const [currentAnalysis, setCurrentAnalysis] = useState<QuoteAnalysis | null>(null);
+  const file1 = uploadedFiles[0] || null;
+  const file2 = uploadedFiles[1] || null;
   const t = copy[language];
   const accountText = accountLabels[language];
 
@@ -982,31 +999,35 @@ export default function App() {
     });
   };
 
-  const handleFileUpload = (fileNumber: 1 | 2, event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files || []);
 
-    if (!file) {
+    if (selectedFiles.length === 0) {
       return;
     }
 
-    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const hasNonPdf = selectedFiles.some(
+      (file) => file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf'),
+    );
 
-    if (!isPdf) {
+    if (hasNonPdf) {
       setErrorMessage(t.pdfError);
       event.target.value = '';
       return;
     }
 
-    setErrorMessage('');
-    if (fileNumber === 1) {
-      setFile1(file);
-    } else {
-      setFile2(file);
+    if (selectedFiles.length > 5) {
+      setErrorMessage('You can upload up to 5 PDF files.');
+      event.target.value = '';
+      return;
     }
+
+    setErrorMessage('');
+    setUploadedFiles(selectedFiles);
   };
 
   const handleAnalyze = async () => {
-    if (!file1 || !file2 || isComparisonUploadLoading) {
+    if (uploadedFiles.length < 2 || uploadedFiles.length > 5 || isComparisonUploadLoading) {
       return;
     }
 
@@ -1019,8 +1040,9 @@ export default function App() {
     setErrorMessage('');
 
     const formData = new FormData();
-    formData.append('quoteA', file1);
-    formData.append('quoteB', file2);
+    uploadedFiles.forEach((file) => {
+      formData.append('quoteFiles', file);
+    });
 
     try {
       const { data, error } = await supabaseClient.functions.invoke<CreateComparisonJobResponse>(
@@ -1199,8 +1221,7 @@ export default function App() {
         {activeView === 'compare' ? (
           <UploadSection
             t={t}
-            file1={file1}
-            file2={file2}
+            files={uploadedFiles}
             errorMessage={errorMessage}
             isUploading={isComparisonUploadLoading}
             onFileUpload={handleFileUpload}
@@ -1214,8 +1235,7 @@ export default function App() {
           <ResultsSection
             t={t}
             language={language}
-            file1={file1}
-            file2={file2}
+            files={uploadedFiles}
             analysis={currentAnalysis}
             currentUser={currentUser}
             onRequireVerifiedEmail={() => {
@@ -2373,21 +2393,21 @@ function ComparisonPreview({
 
 function UploadSection({
   t,
-  file1,
-  file2,
+  files,
   errorMessage,
   isUploading,
   onFileUpload,
   onAnalyze,
 }: {
   t: (typeof copy)[Language];
-  file1: File | null;
-  file2: File | null;
+  files: File[];
   errorMessage: string;
   isUploading: boolean;
-  onFileUpload: (fileNumber: 1 | 2, event: React.ChangeEvent<HTMLInputElement>) => void;
+  onFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onAnalyze: () => void | Promise<void>;
 }) {
+  const canAnalyze = files.length >= 2 && files.length <= 5 && !isUploading;
+
   return (
     <section className="mx-auto max-w-7xl px-5 py-16 md:px-8 md:py-20">
       <div className="mb-10 max-w-3xl">
@@ -2396,23 +2416,49 @@ function UploadSection({
         <p className="mt-4 text-lg leading-8 text-slate-600">{t.compareCopy}</p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-[1fr_0.85fr]">
         <UploadCard
-          id="file1-upload"
-          file={file1}
-          title={t.uploadFirst}
-          selectedTitle={t.selectedFirst}
-          help={t.uploadHelp}
-          onChange={(event) => onFileUpload(1, event)}
+          id="quote-files-upload"
+          files={files}
+          title={t.uploadMultipleTitle}
+          help={t.uploadMultipleHelp}
+          onChange={onFileUpload}
         />
-        <UploadCard
-          id="file2-upload"
-          file={file2}
-          title={t.uploadSecond}
-          selectedTitle={t.selectedSecond}
-          help={t.uploadHelp}
-          onChange={(event) => onFileUpload(2, event)}
-        />
+
+        <div className="rounded-xl border border-[#dbe5f1] bg-white p-6 shadow-[0_18px_42px_rgba(15,35,65,0.05)]">
+          <div className="flex items-center justify-between gap-4 border-b border-[#eef3f8] pb-4">
+            <div>
+              <p className="text-sm font-bold uppercase tracking-[0.16em] text-[#2563eb]">{t.uploadedFilesTitle}</p>
+              <p className="mt-1 text-sm text-slate-500">{files.length} / 5</p>
+            </div>
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eff6ff] text-[#2563eb]">
+              <FileSearch className="h-5 w-5" />
+            </div>
+          </div>
+
+          {files.length ? (
+            <ul className="mt-4 space-y-3">
+              {files.map((file, index) => (
+                <li
+                  key={`${file.name}-${file.size}-${index}`}
+                  className="flex items-start gap-3 rounded-lg border border-[#e7edf5] bg-[#f8fbff] px-4 py-3"
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-[#2563eb]">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-[#10243f]">{file.name}</p>
+                    <p className="mt-1 text-xs text-slate-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="mt-4 rounded-lg border border-dashed border-[#c8d7eb] bg-[#f8fbff] px-4 py-8 text-center text-sm font-semibold text-slate-500">
+              {t.uploadedFilesEmpty}
+            </div>
+          )}
+        </div>
       </div>
 
       {errorMessage ? (
@@ -2423,7 +2469,7 @@ function UploadSection({
         <Button
           variant="contained"
           size="large"
-          disabled={!file1 || !file2 || isUploading}
+          disabled={!canAnalyze}
           onClick={onAnalyze}
           endIcon={isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
           sx={{
@@ -2432,7 +2478,7 @@ function UploadSection({
             backgroundColor: '#1e3a5f',
             borderRadius: '10px',
             boxShadow: '0 14px 30px rgba(30, 58, 95, 0.2)',
-            cursor: file1 && file2 && !isUploading ? 'pointer' : 'not-allowed',
+            cursor: canAnalyze ? 'pointer' : 'not-allowed',
             fontSize: '1rem',
             fontWeight: 700,
             textTransform: 'none',
@@ -2452,35 +2498,35 @@ function UploadSection({
 
 function UploadCard({
   id,
-  file,
   title,
-  selectedTitle,
+  files,
   help,
   onChange,
 }: {
   id: string;
-  file: File | null;
+  files: File[];
   title: string;
-  selectedTitle: string;
   help: string;
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
     <div className="relative">
-      <input type="file" accept="application/pdf" onChange={onChange} className="hidden" id={id} />
+      <input type="file" accept="application/pdf" multiple onChange={onChange} className="hidden" id={id} />
       <label
         htmlFor={id}
         className={`block min-h-[220px] cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-all hover:border-[#2563eb] hover:bg-white ${
-          file ? 'border-[#2563eb] bg-white shadow-[0_18px_46px_rgba(37,99,235,0.12)]' : 'border-[#cbd7e6] bg-white/70'
+          files.length
+            ? 'border-[#2563eb] bg-white shadow-[0_18px_46px_rgba(37,99,235,0.12)]'
+            : 'border-[#cbd7e6] bg-white/70'
         }`}
       >
         <div className="flex min-h-[150px] flex-col items-center justify-center gap-4">
-          {file ? (
+          {files.length ? (
             <>
               <CheckCircle2 className="h-12 w-12 text-[#2563eb]" />
               <div>
-                <p className="mb-1 font-semibold text-[#10243f]">{selectedTitle}</p>
-                <p className="text-sm text-slate-500">{file.name}</p>
+                <p className="mb-1 font-semibold text-[#10243f]">{files.length} PDF files selected</p>
+                <p className="text-sm text-slate-500">{help}</p>
               </div>
             </>
           ) : (
@@ -2516,8 +2562,7 @@ function AnalyzingSection({ t }: { t: (typeof copy)[Language] }) {
 function ResultsSection({
   t,
   language,
-  file1,
-  file2,
+  files,
   analysis,
   currentUser,
   onRequireVerifiedEmail,
@@ -2525,8 +2570,7 @@ function ResultsSection({
 }: {
   t: (typeof copy)[Language];
   language: Language;
-  file1: File | null;
-  file2: File | null;
+  files: File[];
   analysis: QuoteAnalysis | null;
   currentUser: UserSession | null;
   onRequireVerifiedEmail: () => void;
@@ -2564,7 +2608,7 @@ function ResultsSection({
       return;
     }
 
-    downloadAnalysisReport(t, file1, file2, analysis);
+    downloadAnalysisReport(t, files, analysis);
   };
 
   return (
@@ -2610,7 +2654,9 @@ function ResultsSection({
           <div className="border-b border-[#e7edf5] px-6 py-5">
             <h3 className="text-lg font-semibold text-[#10243f]">{t.summary}</h3>
             <p className="mt-1 text-sm text-slate-500">
-              {file1?.name || t.selectedFirst} vs {file2?.name || t.selectedSecond}
+              {files.length
+                ? files.map((file) => file.name).join(' vs ')
+                : `${t.selectedFirst} vs ${t.selectedSecond}`}
             </p>
           </div>
 
@@ -2716,14 +2762,16 @@ function getAnalysisTone(status: QuoteAnalysisItem['status'], deltaValue: string
   return deltaValue.startsWith('-') ? 'text-emerald-600' : deltaValue.startsWith('+') ? 'text-rose-600' : 'text-slate-600';
 }
 
-function downloadAnalysisReport(t: (typeof copy)[Language], file1: File | null, file2: File | null, analysis: QuoteAnalysis | null) {
+function downloadAnalysisReport(t: (typeof copy)[Language], files: File[], analysis: QuoteAnalysis | null) {
   const reportWindow = window.open('', '_blank', 'noopener,noreferrer,width=960,height=1200');
 
   if (!reportWindow) {
     return;
   }
 
-  const quotePair = `${file1?.name || t.selectedFirst} vs ${file2?.name || t.selectedSecond}`;
+  const quotePair = files.length
+    ? files.map((file) => file.name).join(' vs ')
+    : `${t.selectedFirst} vs ${t.selectedSecond}`;
   const rows = (analysis?.items.length
     ? analysis.items
     : resultRows.map((row) => ({
