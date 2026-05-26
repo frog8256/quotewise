@@ -2788,6 +2788,7 @@ function ResultsSection({
   onRequireVerifiedEmail: () => void;
   onNewComparison: () => void;
 }) {
+  const [isReportPreviewOpen, setIsReportPreviewOpen] = useState(false);
   const vendors =
     analysis?.vendors?.length
       ? analysis.vendors
@@ -2822,16 +2823,26 @@ function ResultsSection({
     ? `${analysis.matchedLowerCount} / ${analysis.matchedCount} ${t.matchedLinesLower}`
     : noDataText;
   const coverageHelper = t.coverageItemsHelper;
+  const handlePreviewReport = () => {
+    if (!currentUser?.emailVerified) {
+      onRequireVerifiedEmail();
+      return;
+    }
+
+    setIsReportPreviewOpen(true);
+  };
+
   const handleDownloadReport = () => {
     if (!currentUser?.emailVerified) {
       onRequireVerifiedEmail();
       return;
     }
 
-    downloadAnalysisReport(t, files, analysis);
+    downloadAnalysisReport(t, language, files, analysis);
   };
 
   return (
+    <>
     <section className="mx-auto max-w-7xl px-5 py-12 md:px-8 md:py-16">
       <div className="mb-8 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
         <div>
@@ -2958,6 +2969,31 @@ function ResultsSection({
           <div className="mt-5 rounded-xl border border-[#dbe5f1] bg-white p-5">
             <h3 className="text-base font-semibold text-[#10243f]">{t.reportTitle}</h3>
             <p className="mt-2 text-sm leading-6 text-slate-600">{t.reportCopy}</p>
+            <p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+              {getReportPageLabel(language, 6)}
+            </p>
+            <Button
+              type="button"
+              variant="outlined"
+              fullWidth
+              onClick={handlePreviewReport}
+              sx={{
+                mt: 3,
+                py: 1.15,
+                borderColor: '#b8c9df',
+                borderRadius: '10px',
+                color: '#1e3a5f',
+                cursor: 'pointer',
+                fontWeight: 700,
+                textTransform: 'none',
+                '&:hover': {
+                  borderColor: '#2563eb',
+                  backgroundColor: '#eff6ff',
+                },
+              }}
+            >
+              {getPreviewReportText(language)}
+            </Button>
             <Button
               type="button"
               variant="contained"
@@ -2985,6 +3021,148 @@ function ResultsSection({
         </aside>
       </div>
     </section>
+    {isReportPreviewOpen ? (
+      <ReportPreviewModal
+        t={t}
+        language={language}
+        files={files}
+        analysis={analysis}
+        onClose={() => setIsReportPreviewOpen(false)}
+        onDownload={handleDownloadReport}
+      />
+    ) : null}
+    </>
+  );
+}
+
+function ReportPreviewModal({
+  t,
+  language,
+  files,
+  analysis,
+  onClose,
+  onDownload,
+}: {
+  t: (typeof copy)[Language];
+  language: Language;
+  files: File[];
+  analysis: QuoteAnalysis | null;
+  onClose: () => void;
+  onDownload: () => void;
+}) {
+  const report = getReportModel(t, language, files, analysis);
+  const lockedPages = Array.from({ length: 5 }, (_, index) => index + 2);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#10243f]/45 px-4 py-8 backdrop-blur-sm">
+      <div className="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-[#dbe5f1] bg-white shadow-[0_28px_70px_rgba(15,35,65,0.28)]">
+        <div className="flex items-start justify-between gap-4 border-b border-[#e7edf5] px-6 py-5">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#2563eb]">QuoteWise</p>
+            <h2 className="mt-2 text-2xl font-semibold text-[#10243f]">{t.reportTitle}</h2>
+            <p className="mt-1 text-sm text-slate-500">{getReportPageLabel(language, 6)}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#dbe5f1] text-slate-500 transition hover:border-[#2563eb] hover:text-[#1e3a5f]"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="max-h-[calc(92vh-190px)] overflow-y-auto bg-[#f4f8fd] px-5 py-5">
+          <div className="mx-auto max-w-3xl rounded-2xl border border-[#dbe5f1] bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between gap-4 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+              <span>{getReportPageText(language, 1, 6)}</span>
+              <span>{report.quotePair}</span>
+            </div>
+            <h3 className="mt-5 text-3xl font-semibold leading-tight text-[#10243f]">{report.title}</h3>
+            <p className="mt-4 text-sm leading-7 text-slate-600">{report.summary}</p>
+
+            <div className="mt-6 grid gap-3 md:grid-cols-3">
+              <ReportPreviewMetric label={t.totalSavings} value={report.estimatedSavings} />
+              <ReportPreviewMetric label={t.recommendedVendor} value={report.recommendedQuote} />
+              <ReportPreviewMetric label={t.coverageGaps} value={report.coverageGaps} />
+            </div>
+
+            <div className="mt-6">
+              <h4 className="text-base font-semibold text-[#10243f]">{t.summary}</h4>
+              {report.rows.length ? (
+                <div className="mt-3 overflow-hidden rounded-xl border border-[#e7edf5]">
+                  {report.rows.slice(0, 4).map((row) => (
+                    <div key={row.itemLabel} className="grid grid-cols-[1fr_auto] gap-4 border-b border-[#eef3f8] px-4 py-3 last:border-b-0">
+                      <div>
+                        <p className="text-sm font-semibold text-[#10243f]">{row.itemLabel}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">{row.insight}</p>
+                      </div>
+                      <p className="text-right text-sm font-bold text-[#1e3a5f]">{row.delta}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 rounded-xl border border-[#e7edf5] px-4 py-5 text-center text-sm font-semibold text-slate-500">
+                  {getNoDataText(language)}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="mx-auto mt-4 grid max-w-3xl gap-4 md:grid-cols-2">
+            {lockedPages.map((page) => (
+              <div key={page} className="relative min-h-52 overflow-hidden rounded-2xl border border-[#dbe5f1] bg-white p-5 shadow-sm">
+                <div className="pointer-events-none select-none blur-[3px]">
+                  <div className="h-3 w-28 rounded bg-slate-200" />
+                  <div className="mt-5 h-4 w-4/5 rounded bg-slate-200" />
+                  <div className="mt-3 h-4 w-2/3 rounded bg-slate-200" />
+                  <div className="mt-6 space-y-3">
+                    <div className="h-3 rounded bg-slate-100" />
+                    <div className="h-3 rounded bg-slate-100" />
+                    <div className="h-3 w-3/4 rounded bg-slate-100" />
+                  </div>
+                </div>
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/58 text-center">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">{getReportPageText(language, page, 6)}</p>
+                  <p className="mt-2 max-w-56 text-sm font-semibold text-[#10243f]">{getLockedReportText(language)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-[#e7edf5] px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-500">{getReportPreviewNotice(language)}</p>
+          <Button
+            type="button"
+            variant="contained"
+            onClick={onDownload}
+            startIcon={<Download className="h-4 w-4" />}
+            sx={{
+              backgroundColor: '#1e3a5f',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              fontWeight: 700,
+              px: 2.5,
+              py: 1.15,
+              textTransform: 'none',
+              '&:hover': { backgroundColor: '#2563eb' },
+            }}
+          >
+            {t.reportDownload}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReportPreviewMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-[#e7edf5] bg-[#f8fbff] p-4">
+      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className="mt-2 text-xl font-semibold text-[#10243f]">{value}</p>
+    </div>
   );
 }
 
@@ -3129,41 +3307,156 @@ function getAnalysisTone(status: QuoteAnalysisItem['status'], deltaValue: string
   return deltaValue.startsWith('-') ? 'text-emerald-600' : deltaValue.startsWith('+') ? 'text-rose-600' : 'text-slate-600';
 }
 
-function downloadAnalysisReport(t: (typeof copy)[Language], files: File[], analysis: QuoteAnalysis | null) {
+type ReportModel = {
+  title: string;
+  summary: string;
+  quotePair: string;
+  estimatedSavings: string;
+  recommendedQuote: string;
+  coverageGaps: string;
+  recommendation: string;
+  vendors: string[];
+  rows: Array<{
+    itemLabel: string;
+    insight: string;
+    delta: string;
+    cells: Array<{ vendor: string; value: string; rawTerm?: string }>;
+  }>;
+  insights: string[];
+};
+
+function getReportModel(t: (typeof copy)[Language], language: Language, files: File[], analysis: QuoteAnalysis | null): ReportModel {
+  const noDataText = getNoDataText(language);
+  const vendors = analysis?.vendors?.length
+    ? analysis.vendors
+    : analysis?.items?.some((row) => row.quote_a_value || row.quote_b_value)
+      ? [
+          { side: 'A' as const, name: t.quoteA, filename: files[0]?.name || t.selectedFirst },
+          { side: 'B' as const, name: t.quoteB, filename: files[1]?.name || t.selectedSecond },
+        ]
+      : [];
+  const quotePair = files.length
+    ? files.map((file) => file.name).join(' vs ')
+    : vendors.length
+      ? vendors.map((vendor) => vendor.filename || vendor.name).join(' vs ')
+      : `${t.selectedFirst} vs ${t.selectedSecond}`;
+  const estimatedSavings = analysis ? `$${Math.round(analysis.estimatedSavings).toLocaleString('en-US')}` : '-';
+  const recommendedQuote = analysis?.recommendedQuote || '-';
+
+  return {
+    title: analysis
+      ? getLocalizedText(analysis.title_i18n, language, analysis.title || noDataText)
+      : noDataText,
+    summary: analysis
+      ? getLocalizedText(analysis.summary_i18n, language, analysis.summary || noDataText)
+      : noDataText,
+    quotePair,
+    estimatedSavings,
+    recommendedQuote,
+    coverageGaps: analysis ? String(analysis.coverageGaps) : '-',
+    recommendation: analysis
+      ? getLocalizedText(analysis.recommendation_i18n, language, buildRecommendationText(language, recommendedQuote, estimatedSavings))
+      : noDataText,
+    vendors: vendors.map((vendor) => vendor.name),
+    rows: (analysis?.items || []).map((row) => ({
+      itemLabel: getLocalizedText(row.item_label_i18n, language, row.item_label),
+      insight: getLocalizedText(row.insight_i18n, language, row.insight),
+      delta: getDeltaDisplayValue(row, language, t),
+      cells: vendors.map((vendor) => {
+        const cell = row.cells?.find((item) => item.vendorSide === vendor.side);
+        const legacyValue = vendor.side === 'A' ? row.quote_a_value : vendor.side === 'B' ? row.quote_b_value : undefined;
+
+        return {
+          vendor: vendor.name,
+          value: cell?.included === false ? '-' : cell?.value || legacyValue || '-',
+          rawTerm: cell?.rawTerm,
+        };
+      }),
+    })),
+    insights: analysis
+      ? [
+          ...getLocalizedList(analysis.insights_i18n, language, analysis.insights),
+          ...getLocalizedList(analysis.risks_i18n, language, analysis.risks || []),
+        ]
+      : [],
+  };
+}
+
+function getPreviewReportText(language: Language) {
+  if (language === 'ko') return '리포트 미리보기';
+  if (language === 'ja') return 'レポートをプレビュー';
+  if (language === 'zh') return '预览报告';
+  return 'Preview report';
+}
+
+function getReportPageLabel(language: Language, pages: number) {
+  if (language === 'ko') return `총 ${pages}페이지 리포트`;
+  if (language === 'ja') return `全${pages}ページのレポート`;
+  if (language === 'zh') return `共 ${pages} 页报告`;
+  return `${pages}-page report`;
+}
+
+function getReportPageText(language: Language, page: number, pages: number) {
+  if (language === 'ko') return `${page} / ${pages} 페이지`;
+  if (language === 'ja') return `${page} / ${pages} ページ`;
+  if (language === 'zh') return `第 ${page} / ${pages} 页`;
+  return `Page ${page} / ${pages}`;
+}
+
+function getLockedReportText(language: Language) {
+  if (language === 'ko') return 'PDF를 다운로드하면 전체 리포트를 볼 수 있습니다.';
+  if (language === 'ja') return 'PDFをダウンロードすると全文を確認できます。';
+  if (language === 'zh') return '下载 PDF 后可查看完整报告。';
+  return 'Download the PDF to view the full report.';
+}
+
+function getReportPreviewNotice(language: Language) {
+  if (language === 'ko') return 'MVP 단계에서는 브라우저 인쇄 기능으로 PDF를 저장합니다.';
+  if (language === 'ja') return 'MVP段階ではブラウザの印刷機能でPDFを保存します。';
+  if (language === 'zh') return 'MVP 阶段使用浏览器打印功能保存 PDF。';
+  return 'For the MVP, PDF export uses your browser print dialog.';
+}
+
+function downloadAnalysisReport(t: (typeof copy)[Language], language: Language, files: File[], analysis: QuoteAnalysis | null) {
   const reportWindow = window.open('', '_blank', 'noopener,noreferrer,width=960,height=1200');
 
   if (!reportWindow) {
     return;
   }
 
-  const quotePair = files.length
-    ? files.map((file) => file.name).join(' vs ')
-    : `${t.selectedFirst} vs ${t.selectedSecond}`;
-  const rows = (analysis?.items.length
-    ? analysis.items
-    : resultRows.map((row) => ({
-        item_label: row.item,
-        quote_a_value: row.quoteA === 'Not included' ? '-' : row.quoteA,
-        quote_b_value: row.quoteB === 'Not included' ? '-' : row.quoteB,
-        delta_value: getDeltaValue(row, t),
-        insight: row.note,
-      }))
-  )
-    .map(
-      (row) => `
+  const report = getReportModel(t, language, files, analysis);
+  const vendorHeaders = report.vendors.map((vendor) => `<th>${escapeHtml(vendor)}</th>`).join('');
+  const emptyRows = `
+        <tr>
+          <td colspan="${report.vendors.length + 2}" class="empty">${escapeHtml(getNoDataText(language))}</td>
+        </tr>
+      `;
+  const rows = report.rows.length
+    ? report.rows
+        .map(
+          (row) => `
         <tr>
           <td>
-            <strong>${escapeHtml(row.item_label)}</strong>
+            <strong>${escapeHtml(row.itemLabel)}</strong>
             <span>${escapeHtml(row.insight)}</span>
           </td>
-          <td>${escapeHtml(row.quote_a_value)}</td>
-          <td>${escapeHtml(row.quote_b_value)}</td>
-          <td>${escapeHtml(row.delta_value)}</td>
+          ${row.cells
+            .map(
+              (cell) => `
+                <td>
+                  ${escapeHtml(cell.value)}
+                  ${cell.rawTerm ? `<span>${escapeHtml(cell.rawTerm)}</span>` : ''}
+                </td>
+              `,
+            )
+            .join('')}
+          <td>${escapeHtml(row.delta)}</td>
         </tr>
       `,
-    )
-    .join('');
-  const insights = (analysis?.insights.length ? analysis.insights : t.insightItems)
+        )
+        .join('')
+    : emptyRows;
+  const insights = (report.insights.length ? report.insights : [getNoDataText(language)])
     .map((item) => `<li>${escapeHtml(item)}</li>`)
     .join('');
 
@@ -3267,6 +3560,11 @@ function downloadAnalysisReport(t: (typeof copy)[Language], files: File[], analy
             font-size: 12px;
             line-height: 1.5;
           }
+          .empty {
+            color: #64748b;
+            font-weight: 700;
+            text-align: center !important;
+          }
           ul {
             margin: 0;
             padding-left: 22px;
@@ -3303,24 +3601,23 @@ function downloadAnalysisReport(t: (typeof copy)[Language], files: File[], analy
       <body>
         <main class="report">
           <div class="eyebrow">QuoteWise</div>
-          <h1>${escapeHtml(t.reportTitle)}</h1>
-          <p class="lead">${escapeHtml(t.resultsCopy)}</p>
+          <h1>${escapeHtml(report.title)}</h1>
+          <p class="lead">${escapeHtml(report.summary)}</p>
           <div class="meta">
             <strong>${escapeHtml(t.reportPreparedBy)}</strong><br />
-            ${escapeHtml(quotePair)}
+            ${escapeHtml(report.quotePair)}
           </div>
           <section class="metrics">
-            <div class="metric"><span>${escapeHtml(t.totalSavings)}</span><strong>$190</strong></div>
-            <div class="metric"><span>${escapeHtml(t.recommendedVendor)}</span><strong>${escapeHtml(t.quoteB)}</strong></div>
-            <div class="metric"><span>${escapeHtml(t.coverageGaps)}</span><strong>2</strong></div>
+            <div class="metric"><span>${escapeHtml(t.totalSavings)}</span><strong>${escapeHtml(report.estimatedSavings)}</strong></div>
+            <div class="metric"><span>${escapeHtml(t.recommendedVendor)}</span><strong>${escapeHtml(report.recommendedQuote)}</strong></div>
+            <div class="metric"><span>${escapeHtml(t.coverageGaps)}</span><strong>${escapeHtml(report.coverageGaps)}</strong></div>
           </section>
           <h2>${escapeHtml(t.summary)}</h2>
           <table>
             <thead>
               <tr>
                 <th>${escapeHtml(t.previewHeaders[0])}</th>
-                <th>${escapeHtml(t.quoteA)}</th>
-                <th>${escapeHtml(t.quoteB)}</th>
+                ${vendorHeaders}
                 <th>${escapeHtml(t.delta)}</th>
               </tr>
             </thead>
@@ -3328,7 +3625,7 @@ function downloadAnalysisReport(t: (typeof copy)[Language], files: File[], analy
           </table>
           <h2>${escapeHtml(t.keyInsights)}</h2>
           <ul>${insights}</ul>
-          <div class="recommendation">${escapeHtml(t.recommendation)}: ${escapeHtml(t.recommendationValue)}</div>
+          <div class="recommendation">${escapeHtml(t.recommendation)}: ${escapeHtml(report.recommendation)}</div>
           <div class="actions">
             <button onclick="window.print()">${escapeHtml(t.reportDownload)}</button>
           </div>
