@@ -104,7 +104,7 @@ const copy = {
     uploadMultipleTitle: 'Upload quotation PDFs',
     uploadMultipleHelp: 'Choose 2 to 5 PDF files.',
     uploadedFilesTitle: 'Uploaded files',
-    uploadedFilesEmpty: 'No files selected yet.',
+    uploadedFilesEmpty: 'Click to upload files or drag and drop them here.',
     selectedFirst: 'Quotation 1',
     selectedSecond: 'Quotation 2',
     analyze: 'Start comparison analysis',
@@ -214,7 +214,7 @@ const copy = {
     uploadMultipleTitle: '견적서 PDF 업로드',
     uploadMultipleHelp: 'PDF 파일을 2개에서 최대 5개까지 선택하세요.',
     uploadedFilesTitle: '업로드한 파일',
-    uploadedFilesEmpty: '아직 선택한 파일이 없습니다.',
+    uploadedFilesEmpty: '파일을 클릭해서 업로드하거나 여기로 드래그 앤 드롭하세요.',
     selectedFirst: '견적서 1',
     selectedSecond: '견적서 2',
     analyze: '비교 분석 시작하기',
@@ -307,7 +307,7 @@ const copy = {
     uploadMultipleTitle: '見積書PDFをアップロード',
     uploadMultipleHelp: 'PDFファイルを2〜5件選択してください。',
     uploadedFilesTitle: 'アップロード済みファイル',
-    uploadedFilesEmpty: 'まだファイルが選択されていません。',
+    uploadedFilesEmpty: 'クリックしてアップロードするか、ここにドラッグ＆ドロップしてください。',
     selectedFirst: '見積書 1',
     selectedSecond: '見積書 2',
     analyze: '比較分析を開始',
@@ -400,7 +400,7 @@ const copy = {
     uploadMultipleTitle: '上传报价 PDF',
     uploadMultipleHelp: '请选择 2 到 5 个 PDF 文件。',
     uploadedFilesTitle: '已上传文件',
-    uploadedFilesEmpty: '尚未选择文件。',
+    uploadedFilesEmpty: '点击上传文件，或将文件拖放到这里。',
     selectedFirst: '报价 1',
     selectedSecond: '报价 2',
     analyze: '开始比较分析',
@@ -999,9 +999,7 @@ export default function App() {
     });
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(event.target.files || []);
-
+  const addUploadedFiles = (selectedFiles: File[]) => {
     if (selectedFiles.length === 0) {
       return;
     }
@@ -1012,18 +1010,51 @@ export default function App() {
 
     if (hasNonPdf) {
       setErrorMessage(t.pdfError);
-      event.target.value = '';
       return;
     }
 
-    if (selectedFiles.length > 5) {
-      setErrorMessage('You can upload up to 5 PDF files.');
-      event.target.value = '';
-      return;
-    }
+    setUploadedFiles((currentFiles) => {
+      const nextFiles = [...currentFiles];
 
+      selectedFiles.forEach((file) => {
+        const alreadySelected = nextFiles.some(
+          (selectedFile) =>
+            selectedFile.name === file.name &&
+            selectedFile.size === file.size &&
+            selectedFile.lastModified === file.lastModified,
+        );
+
+        if (!alreadySelected && nextFiles.length < 5) {
+          nextFiles.push(file);
+        }
+      });
+
+      const reachedLimit = currentFiles.length + selectedFiles.length > 5;
+
+      if (reachedLimit) {
+        setErrorMessage('You can upload up to 5 PDF files.');
+      } else {
+        setErrorMessage('');
+      }
+
+      return nextFiles;
+    });
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files || []);
+    addUploadedFiles(selectedFiles);
+    event.target.value = '';
+  };
+
+  const handleFileDrop = (event: React.DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    addUploadedFiles(Array.from(event.dataTransfer.files || []));
+  };
+
+  const handleRemoveUploadedFile = (indexToRemove: number) => {
     setErrorMessage('');
-    setUploadedFiles(selectedFiles);
+    setUploadedFiles((currentFiles) => currentFiles.filter((_, index) => index !== indexToRemove));
   };
 
   const handleAnalyze = async () => {
@@ -1225,6 +1256,8 @@ export default function App() {
             errorMessage={errorMessage}
             isUploading={isComparisonUploadLoading}
             onFileUpload={handleFileUpload}
+            onFileDrop={handleFileDrop}
+            onRemoveFile={handleRemoveUploadedFile}
             onAnalyze={handleAnalyze}
           />
         ) : null}
@@ -2397,6 +2430,8 @@ function UploadSection({
   errorMessage,
   isUploading,
   onFileUpload,
+  onFileDrop,
+  onRemoveFile,
   onAnalyze,
 }: {
   t: (typeof copy)[Language];
@@ -2404,6 +2439,8 @@ function UploadSection({
   errorMessage: string;
   isUploading: boolean;
   onFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onFileDrop: (event: React.DragEvent<HTMLLabelElement>) => void;
+  onRemoveFile: (index: number) => void;
   onAnalyze: () => void | Promise<void>;
 }) {
   const canAnalyze = files.length >= 2 && files.length <= 5 && !isUploading;
@@ -2416,49 +2453,17 @@ function UploadSection({
         <p className="mt-4 text-lg leading-8 text-slate-600">{t.compareCopy}</p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_0.85fr]">
+      <div>
         <UploadCard
           id="quote-files-upload"
           files={files}
           title={t.uploadMultipleTitle}
           help={t.uploadMultipleHelp}
           onChange={onFileUpload}
+          onDrop={onFileDrop}
+          onRemoveFile={onRemoveFile}
+          emptyLabel={t.uploadedFilesEmpty}
         />
-
-        <div className="rounded-xl border border-[#dbe5f1] bg-white p-6 shadow-[0_18px_42px_rgba(15,35,65,0.05)]">
-          <div className="flex items-center justify-between gap-4 border-b border-[#eef3f8] pb-4">
-            <div>
-              <p className="text-sm font-bold uppercase tracking-[0.16em] text-[#2563eb]">{t.uploadedFilesTitle}</p>
-              <p className="mt-1 text-sm text-slate-500">{files.length} / 5</p>
-            </div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eff6ff] text-[#2563eb]">
-              <FileSearch className="h-5 w-5" />
-            </div>
-          </div>
-
-          {files.length ? (
-            <ul className="mt-4 space-y-3">
-              {files.map((file, index) => (
-                <li
-                  key={`${file.name}-${file.size}-${index}`}
-                  className="flex items-start gap-3 rounded-lg border border-[#e7edf5] bg-[#f8fbff] px-4 py-3"
-                >
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-[#2563eb]">
-                    {index + 1}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-[#10243f]">{file.name}</p>
-                    <p className="mt-1 text-xs text-slate-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="mt-4 rounded-lg border border-dashed border-[#c8d7eb] bg-[#f8fbff] px-4 py-8 text-center text-sm font-semibold text-slate-500">
-              {t.uploadedFilesEmpty}
-            </div>
-          )}
-        </div>
       </div>
 
       {errorMessage ? (
@@ -2502,18 +2507,26 @@ function UploadCard({
   files,
   help,
   onChange,
+  onDrop,
+  onRemoveFile,
+  emptyLabel,
 }: {
   id: string;
   files: File[];
   title: string;
   help: string;
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onDrop: (event: React.DragEvent<HTMLLabelElement>) => void;
+  onRemoveFile: (index: number) => void;
+  emptyLabel: string;
 }) {
   return (
     <div className="relative">
       <input type="file" accept="application/pdf" multiple onChange={onChange} className="hidden" id={id} />
       <label
         htmlFor={id}
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={onDrop}
         className={`block min-h-[220px] cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-all hover:border-[#2563eb] hover:bg-white ${
           files.length
             ? 'border-[#2563eb] bg-white shadow-[0_18px_46px_rgba(37,99,235,0.12)]'
@@ -2521,23 +2534,37 @@ function UploadCard({
         }`}
       >
         <div className="flex min-h-[150px] flex-col items-center justify-center gap-4">
+          <Upload className={`h-12 w-12 ${files.length ? 'text-[#2563eb]' : 'text-slate-400'}`} />
+          <div>
+            <p className="mb-1 font-semibold text-[#10243f]">{files.length ? `${files.length} / 5 PDF files` : title}</p>
+            <p className="text-sm text-slate-500">{files.length ? help : emptyLabel}</p>
+          </div>
+
           {files.length ? (
-            <>
-              <CheckCircle2 className="h-12 w-12 text-[#2563eb]" />
-              <div>
-                <p className="mb-1 font-semibold text-[#10243f]">{files.length} PDF files selected</p>
-                <p className="text-sm text-slate-500">{help}</p>
-              </div>
-            </>
-          ) : (
-            <>
-              <Upload className="h-12 w-12 text-slate-400" />
-              <div>
-                <p className="mb-1 font-semibold text-[#10243f]">{title}</p>
-                <p className="text-sm text-slate-500">{help}</p>
-              </div>
-            </>
-          )}
+            <ul className="mt-2 grid w-full gap-3 text-left md:grid-cols-2">
+              {files.map((file, index) => (
+                <li
+                  key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+                  className="flex min-w-0 items-center gap-3 rounded-lg border border-[#e7edf5] bg-[#f8fbff] px-4 py-3"
+                >
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-[#2563eb]" />
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#10243f]">{file.name}</span>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${file.name}`}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onRemoveFile(index);
+                    }}
+                    className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full border border-[#c8d7eb] bg-white text-slate-500 transition-colors hover:border-rose-300 hover:text-rose-600"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       </label>
     </div>
