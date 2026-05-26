@@ -49,6 +49,7 @@ type CreateComparisonJobResponse = {
 };
 type QuoteAnalysisItem = {
   item_label: string;
+  item_label_i18n?: Partial<Record<Language, string>>;
   cells?: Array<{
     vendorSide: 'A' | 'B' | 'C' | 'D' | 'E';
     value: string;
@@ -59,8 +60,11 @@ type QuoteAnalysisItem = {
   quote_a_value?: string;
   quote_b_value?: string;
   delta_value: string;
+  delta_i18n?: Partial<Record<Language, string>>;
+  delta_status?: 'lower_in_a' | 'lower_in_b' | 'same' | 'only_in_a' | 'only_in_b' | 'different_basis';
   status: 'matched' | 'only_in_a' | 'only_in_b' | 'different_basis';
   insight: string;
+  insight_i18n?: Partial<Record<Language, string>>;
 };
 type QuoteAnalysisVendor = {
   side: 'A' | 'B' | 'C' | 'D' | 'E';
@@ -69,8 +73,11 @@ type QuoteAnalysisVendor = {
 };
 type QuoteAnalysis = {
   title: string;
+  title_i18n?: Partial<Record<Language, string>>;
   summary: string;
+  summary_i18n?: Partial<Record<Language, string>>;
   recommendedQuote: string;
+  recommendation_i18n?: Partial<Record<Language, string>>;
   estimatedSavings: number;
   coverageGaps: number;
   matchedLowerCount: number;
@@ -78,7 +85,9 @@ type QuoteAnalysis = {
   vendors?: QuoteAnalysisVendor[];
   items: QuoteAnalysisItem[];
   insights: string[];
+  insights_i18n?: Partial<Record<Language, string[]>>;
   risks?: string[];
+  risks_i18n?: Partial<Record<Language, string[]>>;
 };
 
 const authStorageKey = 'quotewise.user';
@@ -2802,9 +2811,19 @@ function ResultsSection({
                 : ('matched' as const),
         insight: row.notes?.[language] || row.note,
       }));
-  const insights = analysis?.insights.length ? [...analysis.insights, ...(analysis.risks || [])] : t.insightItems;
+  const title = getLocalizedText(analysis?.title_i18n, language, analysis?.title || t.resultsTitle);
+  const summary = getLocalizedText(analysis?.summary_i18n, language, analysis?.summary || t.resultsCopy);
+  const insights = analysis
+    ? [
+        ...getLocalizedList(analysis.insights_i18n, language, analysis.insights),
+        ...getLocalizedList(analysis.risks_i18n, language, analysis.risks || []),
+      ]
+    : t.insightItems;
   const estimatedSavings = analysis ? `$${Math.round(analysis.estimatedSavings).toLocaleString('en-US')}` : '$190';
   const recommendedQuote = analysis?.recommendedQuote || t.quoteB;
+  const recommendationValue = analysis
+    ? getLocalizedText(analysis.recommendation_i18n, language, buildRecommendationText(language, recommendedQuote, estimatedSavings))
+    : t.recommendationValue;
   const matchedHelper = analysis
     ? `${analysis.matchedLowerCount} / ${analysis.matchedCount} ${t.matchedLinesLower}`
     : `3 / 4 ${t.matchedLinesLower}`;
@@ -2823,8 +2842,8 @@ function ResultsSection({
       <div className="mb-8 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="mb-3 text-sm font-bold uppercase tracking-[0.2em] text-[#2563eb]">{t.results}</p>
-          <h2 className="max-w-3xl text-4xl font-semibold text-[#10243f]">{analysis?.title || t.resultsTitle}</h2>
-          <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-600">{analysis?.summary || t.resultsCopy}</p>
+          <h2 className="max-w-3xl text-4xl font-semibold text-[#10243f]">{title}</h2>
+          <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-600">{summary}</p>
         </div>
         <Button
           variant="outlined"
@@ -2871,7 +2890,7 @@ function ResultsSection({
             className="grid gap-4 border-b border-[#eef3f8] px-6 py-4 text-sm font-bold text-slate-500"
             style={{ gridTemplateColumns: `minmax(180px,1.15fr) repeat(${vendors.length}, minmax(120px,0.8fr)) minmax(110px,0.6fr)` }}
           >
-            <div>항목</div>
+            <div>{t.previewHeaders[0]}</div>
             {vendors.map((vendor) => (
               <div key={vendor.side} className="text-right">
                 {vendor.name}
@@ -2887,8 +2906,8 @@ function ResultsSection({
               style={{ gridTemplateColumns: `minmax(180px,1.15fr) repeat(${vendors.length}, minmax(120px,0.8fr)) minmax(110px,0.6fr)` }}
             >
               <div>
-                <p className="font-semibold text-[#10243f]">{row.item_label}</p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">{row.insight}</p>
+                <p className="font-semibold text-[#10243f]">{getLocalizedText(row.item_label_i18n, language, row.item_label)}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">{getLocalizedText(row.insight_i18n, language, row.insight)}</p>
               </div>
               {vendors.map((vendor) => {
                 const cell = row.cells?.find((item) => item.vendorSide === vendor.side);
@@ -2902,8 +2921,8 @@ function ResultsSection({
                 );
               })}
               <DeltaValue
-                value={row.status === 'different_basis' && language !== 'en' ? t.differentBasis : row.delta_value}
-                tone={getAnalysisTone(row.status, row.delta_value)}
+                value={getDeltaDisplayValue(row, language, t)}
+                tone={getAnalysisTone(row.status, row.delta_value, row.delta_status)}
                 color={row.status === 'different_basis' ? '#DB2777' : undefined}
                 stacked={row.status === 'different_basis' && language === 'en'}
               />
@@ -2923,9 +2942,7 @@ function ResultsSection({
           </div>
           <div className="mt-7 rounded-xl border border-[#b8c9df] bg-[#f8fbff] p-4">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">{t.recommendation}</p>
-            <p className="mt-2 text-lg font-bold text-[#1e3a5f]">
-              {analysis ? `${recommendedQuote} saves ${estimatedSavings}` : t.recommendationValue}
-            </p>
+            <p className="mt-2 text-lg font-bold text-[#1e3a5f]">{recommendationValue}</p>
           </div>
 
           <div className="mt-5 rounded-xl border border-[#dbe5f1] bg-white p-5">
@@ -2979,7 +2996,57 @@ function QuoteValue({ value, rawTerm }: { value: string; rawTerm?: string }) {
   );
 }
 
-function getAnalysisTone(status: QuoteAnalysisItem['status'], deltaValue: string) {
+function getLocalizedText(values: Partial<Record<Language, string>> | undefined, language: Language, fallback: string) {
+  return values?.[language] || values?.en || fallback;
+}
+
+function getLocalizedList(values: Partial<Record<Language, string[]>> | undefined, language: Language, fallback: string[]) {
+  return values?.[language]?.length ? values[language] : values?.en?.length ? values.en : fallback;
+}
+
+function buildRecommendationText(language: Language, recommendedQuote: string, estimatedSavings: string) {
+  if (language === 'ko') {
+    return `${recommendedQuote} 선택 시 ${estimatedSavings} 절감`;
+  }
+
+  if (language === 'ja') {
+    return `${recommendedQuote}で${estimatedSavings}削減`;
+  }
+
+  if (language === 'zh') {
+    return `选择 ${recommendedQuote} 可节省 ${estimatedSavings}`;
+  }
+
+  return `${recommendedQuote} saves ${estimatedSavings}`;
+}
+
+function getDeltaDisplayValue(row: QuoteAnalysisItem, language: Language, t: (typeof copy)[Language]) {
+  const localizedDelta = getLocalizedText(row.delta_i18n, language, '');
+
+  if (localizedDelta) {
+    return localizedDelta;
+  }
+
+  if (row.delta_status === 'same') {
+    return language === 'ko' ? '차이 없음' : language === 'ja' ? '差分なし' : language === 'zh' ? '无差异' : 'No difference';
+  }
+
+  if (row.delta_status === 'only_in_a' || row.status === 'only_in_a') {
+    return t.onlyInA;
+  }
+
+  if (row.delta_status === 'only_in_b' || row.status === 'only_in_b') {
+    return t.onlyInB;
+  }
+
+  if (row.delta_status === 'different_basis' || row.status === 'different_basis') {
+    return t.differentBasis;
+  }
+
+  return row.delta_value;
+}
+
+function getAnalysisTone(status: QuoteAnalysisItem['status'], deltaValue: string, deltaStatus?: QuoteAnalysisItem['delta_status']) {
   if (status === 'only_in_a') {
     return 'text-amber-600';
   }
@@ -2990,6 +3057,18 @@ function getAnalysisTone(status: QuoteAnalysisItem['status'], deltaValue: string
 
   if (status === 'different_basis') {
     return 'text-slate-700';
+  }
+
+  if (deltaStatus === 'lower_in_b') {
+    return 'text-emerald-600';
+  }
+
+  if (deltaStatus === 'lower_in_a') {
+    return 'text-rose-600';
+  }
+
+  if (deltaStatus === 'same') {
+    return 'text-slate-500';
   }
 
   return deltaValue.startsWith('-') ? 'text-emerald-600' : deltaValue.startsWith('+') ? 'text-rose-600' : 'text-slate-600';

@@ -12,6 +12,8 @@ const GUEST_EXPIRY_HOURS = 24;
 const SIDES = ['A', 'B', 'C', 'D', 'E'] as const;
 
 type UploadedSide = (typeof SIDES)[number];
+type LocalizedText = Partial<Record<OutputLanguage, string>>;
+type LocalizedList = Partial<Record<OutputLanguage, string[]>>;
 type VendorAnalysis = {
   side: UploadedSide;
   name: string;
@@ -26,16 +28,23 @@ type AnalysisCell = {
 };
 type AnalysisItem = {
   item_label: string;
+  item_label_i18n?: LocalizedText;
   cells: AnalysisCell[];
   delta_value: string;
+  delta_i18n?: LocalizedText;
+  delta_status?: 'lower_in_a' | 'lower_in_b' | 'same' | 'only_in_a' | 'only_in_b' | 'different_basis';
   status: 'matched' | 'only_in_a' | 'only_in_b' | 'different_basis';
   insight: string;
+  insight_i18n?: LocalizedText;
   sort_order: number;
 };
 type AnalysisResult = {
   title: string;
+  title_i18n?: LocalizedText;
   summary: string;
+  summary_i18n?: LocalizedText;
   recommendedQuote: string;
+  recommendation_i18n?: LocalizedText;
   estimatedSavings: number;
   coverageGaps: number;
   matchedLowerCount: number;
@@ -43,7 +52,9 @@ type AnalysisResult = {
   vendors: VendorAnalysis[];
   items: AnalysisItem[];
   insights: string[];
+  insights_i18n?: LocalizedList;
   risks: string[];
+  risks_i18n?: LocalizedList;
 };
 type OutputLanguage = 'en' | 'ko' | 'ja' | 'zh';
 const languageLabels: Record<OutputLanguage, string> = {
@@ -103,6 +114,64 @@ function normalizeCurrency(value: unknown) {
   return '-';
 }
 
+function normalizeLocalizedText(value: unknown): LocalizedText | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const source = value as Record<string, unknown>;
+  const result: LocalizedText = {};
+
+  (['en', 'ko', 'ja', 'zh'] as const).forEach((language) => {
+    if (typeof source[language] === 'string' && source[language].trim()) {
+      result[language] = source[language].trim();
+    }
+  });
+
+  return Object.keys(result).length ? result : undefined;
+}
+
+function normalizeLocalizedList(value: unknown): LocalizedList | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const source = value as Record<string, unknown>;
+  const result: LocalizedList = {};
+
+  (['en', 'ko', 'ja', 'zh'] as const).forEach((language) => {
+    if (Array.isArray(source[language])) {
+      const items = source[language].filter((item): item is string => typeof item === 'string' && Boolean(item.trim()));
+
+      if (items.length) {
+        result[language] = items.slice(0, 8);
+      }
+    }
+  });
+
+  return Object.keys(result).length ? result : undefined;
+}
+
+function getLocalizedFallback(values: LocalizedText | undefined, language: OutputLanguage, fallback: string) {
+  return values?.[language] || values?.en || fallback;
+}
+
+function toDatabaseComparisonStatus(status: AnalysisItem['status'], deltaStatus?: AnalysisItem['delta_status']) {
+  if (deltaStatus === 'only_in_a' || status === 'only_in_a') {
+    return 'only_in_a';
+  }
+
+  if (deltaStatus === 'only_in_b' || status === 'only_in_b') {
+    return 'only_in_b';
+  }
+
+  if (deltaStatus === 'different_basis' || status === 'different_basis') {
+    return 'different_basis';
+  }
+
+  return 'matched';
+}
+
 async function fileToDataUrl(file: File) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   let binary = '';
@@ -145,7 +214,7 @@ async function createCacheKey(
 ) {
   return sha256(
     JSON.stringify({
-      version: 3,
+      version: 4,
       model: 'gpt-4.1-mini',
       language,
       files: fingerprints.map((item) => ({
@@ -192,13 +261,34 @@ function normalizeAnalysis(raw: unknown, files: Array<{ side: UploadedSide; file
       };
     });
     const status = row.status === 'only_in_a' || row.status === 'only_in_b' || row.status === 'different_basis' ? row.status : 'matched';
+    const deltaStatus =
+      row.delta_status === 'lower_in_a' ||
+      row.delta_status === 'lower_in_b' ||
+      row.delta_status === 'same' ||
+      row.delta_status === 'only_in_a' ||
+      row.delta_status === 'only_in_b' ||
+      row.delta_status === 'different_basis'
+        ? row.delta_status
+        : status === 'only_in_a' || status === 'only_in_b' || status === 'different_basis'
+          ? status
+          : undefined;
+    const itemLabelI18n = normalizeLocalizedText(row.item_label_i18n);
+    const insightI18n = normalizeLocalizedText(row.insight_i18n);
+    const deltaI18n = normalizeLocalizedText(row.delta_i18n);
 
     return {
-      item_label: typeof row.item_label === 'string' && row.item_label.trim() ? row.item_label.trim() : `Item ${index + 1}`,
+      item_label:
+        typeof row.item_label === 'string' && row.item_label.trim()
+          ? row.item_label.trim()
+          : getLocalizedFallback(itemLabelI18n, 'en', `Item ${index + 1}`),
+      item_label_i18n: itemLabelI18n,
       cells,
       delta_value: typeof row.delta_value === 'string' && row.delta_value.trim() ? row.delta_value.trim() : '',
+      delta_i18n: deltaI18n,
+      delta_status: deltaStatus,
       status,
-      insight: typeof row.insight === 'string' ? row.insight.trim() : '',
+      insight: typeof row.insight === 'string' && row.insight.trim() ? row.insight.trim() : getLocalizedFallback(insightI18n, 'en', ''),
+      insight_i18n: insightI18n,
       sort_order: Number.isFinite(Number(row.sort_order)) ? Number(row.sort_order) : index,
     };
   });
@@ -211,14 +301,28 @@ function normalizeAnalysis(raw: unknown, files: Array<{ side: UploadedSide; file
   const risks = Array.isArray(source.risks)
     ? source.risks.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())).slice(0, 8)
     : [];
+  const titleI18n = normalizeLocalizedText(source.title_i18n);
+  const summaryI18n = normalizeLocalizedText(source.summary_i18n);
+  const recommendationI18n = normalizeLocalizedText(source.recommendation_i18n);
+  const insightsI18n = normalizeLocalizedList(source.insights_i18n);
+  const risksI18n = normalizeLocalizedList(source.risks_i18n);
 
   return {
-    title: typeof source.title === 'string' && source.title.trim() ? source.title.trim() : 'QuoteWise comparison is ready',
-    summary: typeof source.summary === 'string' && source.summary.trim() ? source.summary.trim() : 'Review the normalized items and vendor differences below.',
+    title:
+      typeof source.title === 'string' && source.title.trim()
+        ? source.title.trim()
+        : getLocalizedFallback(titleI18n, 'en', 'QuoteWise comparison is ready'),
+    title_i18n: titleI18n,
+    summary:
+      typeof source.summary === 'string' && source.summary.trim()
+        ? source.summary.trim()
+        : getLocalizedFallback(summaryI18n, 'en', 'Review the normalized items and vendor differences below.'),
+    summary_i18n: summaryI18n,
     recommendedQuote:
       typeof source.recommendedQuote === 'string' && source.recommendedQuote.trim()
         ? source.recommendedQuote.trim()
         : vendors[0]?.name || 'Quote A',
+    recommendation_i18n: recommendationI18n,
     estimatedSavings: Number.isFinite(Number(source.estimatedSavings)) ? Number(source.estimatedSavings) : 0,
     coverageGaps,
     matchedLowerCount: Number.isFinite(Number(source.matchedLowerCount)) ? Number(source.matchedLowerCount) : 0,
@@ -226,7 +330,9 @@ function normalizeAnalysis(raw: unknown, files: Array<{ side: UploadedSide; file
     vendors,
     items,
     insights: insights.length ? insights : ['AI normalized item names and compared vendor quote lines.'],
+    insights_i18n: insightsI18n,
     risks,
+    risks_i18n: risksI18n,
   };
 }
 
@@ -366,7 +472,7 @@ async function analyzeWithOpenAI(openAiKey: string, files: Array<{ side: Uploade
         {
           role: 'system',
           content:
-            `You are QuoteWise, an expert procurement quotation analyst. Analyze supplier quotation PDFs. Normalize item terminology, compare prices, detect missing/hidden costs, detect pricing-basis differences, and identify risk factors. Return only valid JSON. Write all user-facing analysis text in ${outputLanguage}. This includes title, summary, item_label, each row insight, delta_value, insights, and risks. Keep vendor names and rawTerm exactly as written in the source PDFs.`,
+            'You are QuoteWise, an expert procurement quotation analyst. Analyze supplier quotation PDFs. Normalize item terminology, compare prices, detect missing/hidden costs, detect pricing-basis differences, and identify risk factors. Return only valid JSON. Keep vendor names, filenames, rawTerm, numbers, units, and currencies exactly as written in the source PDFs. For every user-facing sentence or label, return localized text for en, ko, ja, and zh.',
         },
         {
           role: 'user',
@@ -374,7 +480,7 @@ async function analyzeWithOpenAI(openAiKey: string, files: Array<{ side: Uploade
             {
               type: 'input_text',
               text:
-                `Analyze these quotation PDFs. Extract vendor/company names from the PDFs and use them as vendor names. Normalize equivalent item names into one item_label in ${outputLanguage}, but preserve each quote's original term in rawTerm exactly as written in the PDF. Include all vendors A-E that are provided. For each item, provide each vendor cell with value, rawTerm, included, and pricingBasis. Detect only-in-vendor items, different pricing basis, hidden costs, missing items, and risk factors. Write title, summary, item_label, delta_value, every item insight, insights, and risks in ${outputLanguage}. Keep rawTerm and vendor names untranslated. The gray row description shown under each item is the insight field, so it must be in ${outputLanguage}. Use this JSON shape exactly: {"title":string,"summary":string,"recommendedQuote":string,"estimatedSavings":number,"coverageGaps":number,"matchedLowerCount":number,"matchedCount":number,"vendors":[{"side":"A","name":string,"filename":string}],"items":[{"item_label":string,"cells":[{"vendorSide":"A","value":string,"rawTerm":string,"included":boolean,"pricingBasis":string}],"delta_value":string,"status":"matched|only_in_a|only_in_b|different_basis","insight":string,"sort_order":number}],"insights":[string],"risks":[string]}.`,
+                `Analyze these quotation PDFs. Extract vendor/company names from the PDFs and use them as vendor names. Determine the quote subject, such as logistics cost, raw material cost, labor cost, equipment, construction, or support. Force the result title format in each language: "Vendor A, Vendor B [subject] quotation comparison result" using localized grammar. Keep title concise. Keep summary as short as possible. Normalize equivalent item names, but preserve each quote's original term in rawTerm exactly as written in the PDF. Include all vendors A-E that are provided. For each item, provide each vendor cell with value, rawTerm, included, and pricingBasis. For the delta column, do not write long sentences. Use delta_status from this enum only: "lower_in_a", "lower_in_b", "same", "only_in_a", "only_in_b", "different_basis". Use status from this enum only: "matched", "only_in_a", "only_in_b", "different_basis"; for lower_in_a, lower_in_b, and same, status must be "matched". Return delta_i18n as a short UI label in all languages, for example "Side B cheaper by $100", "No difference", "Only in A", or "Different basis". Return item_label_i18n, insight_i18n, title_i18n, summary_i18n, recommendation_i18n, insights_i18n, and risks_i18n for en, ko, ja, zh. The gray row description under each item is insight_i18n and must be localized. Key insights and recommendation must be localized. Keep rawTerm and vendor names untranslated. Also fill plain string fallbacks using ${outputLanguage}. Use this JSON shape exactly: {"title":string,"title_i18n":{"en":string,"ko":string,"ja":string,"zh":string},"summary":string,"summary_i18n":{"en":string,"ko":string,"ja":string,"zh":string},"recommendedQuote":string,"recommendation_i18n":{"en":string,"ko":string,"ja":string,"zh":string},"estimatedSavings":number,"coverageGaps":number,"matchedLowerCount":number,"matchedCount":number,"vendors":[{"side":"A","name":string,"filename":string}],"items":[{"item_label":string,"item_label_i18n":{"en":string,"ko":string,"ja":string,"zh":string},"cells":[{"vendorSide":"A","value":string,"rawTerm":string,"included":boolean,"pricingBasis":string}],"delta_value":string,"delta_i18n":{"en":string,"ko":string,"ja":string,"zh":string},"delta_status":"lower_in_a|lower_in_b|same|only_in_a|only_in_b|different_basis","status":"matched|only_in_a|only_in_b|different_basis","insight":string,"insight_i18n":{"en":string,"ko":string,"ja":string,"zh":string},"sort_order":number}],"insights":[string],"insights_i18n":{"en":[string],"ko":[string],"ja":[string],"zh":[string]},"risks":[string],"risks_i18n":{"en":[string],"ko":[string],"ja":[string],"zh":[string]}}.`,
             },
             ...fileContent,
           ],
@@ -544,7 +650,7 @@ Deno.serve(async (req) => {
         quote_a_value: item.cells.find((cell) => cell.vendorSide === 'A')?.value || '-',
         quote_b_value: item.cells.find((cell) => cell.vendorSide === 'B')?.value || '-',
         delta_value: item.delta_value,
-        status: item.status,
+        status: toDatabaseComparisonStatus(item.status, item.delta_status),
         insight: item.insight,
         sort_order: item.sort_order,
       })),
