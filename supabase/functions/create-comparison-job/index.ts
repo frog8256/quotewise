@@ -346,9 +346,56 @@ async function compareExtractedQuotesWithOpenAI(
 }
 
 async function analyzeWithOpenAI(openAiKey: string, files: Array<{ side: UploadedSide; file: File }>, language: OutputLanguage) {
-  const extractedQuotes = await extractQuotesWithOpenAI(openAiKey, files);
+  const fileContent = await Promise.all(
+    files.map(async ({ side, file }) => ({
+      type: 'input_file',
+      filename: `${side}-${sanitizeName(file.name)}`,
+      file_data: await fileToDataUrl(file),
+    })),
+  );
+  const outputLanguage = languageLabels[language] || languageLabels.en;
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${openAiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4.1-mini',
+      input: [
+        {
+          role: 'system',
+          content:
+            `You are QuoteWise, an expert procurement quotation analyst. Analyze supplier quotation PDFs. Normalize item terminology, compare prices, detect missing/hidden costs, detect pricing-basis differences, and identify risk factors. Return only valid JSON. Write all user-facing analysis text in ${outputLanguage}. This includes title, summary, item_label, each row insight, delta_value, insights, and risks. Keep vendor names and rawTerm exactly as written in the source PDFs.`,
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'input_text',
+              text:
+                `Analyze these quotation PDFs. Extract vendor/company names from the PDFs and use them as vendor names. Normalize equivalent item names into one item_label in ${outputLanguage}, but preserve each quote's original term in rawTerm exactly as written in the PDF. Include all vendors A-E that are provided. For each item, provide each vendor cell with value, rawTerm, included, and pricingBasis. Detect only-in-vendor items, different pricing basis, hidden costs, missing items, and risk factors. Write title, summary, item_label, delta_value, every item insight, insights, and risks in ${outputLanguage}. Keep rawTerm and vendor names untranslated. The gray row description shown under each item is the insight field, so it must be in ${outputLanguage}. Use this JSON shape exactly: {"title":string,"summary":string,"recommendedQuote":string,"estimatedSavings":number,"coverageGaps":number,"matchedLowerCount":number,"matchedCount":number,"vendors":[{"side":"A","name":string,"filename":string}],"items":[{"item_label":string,"cells":[{"vendorSide":"A","value":string,"rawTerm":string,"included":boolean,"pricingBasis":string}],"delta_value":string,"status":"matched|only_in_a|only_in_b|different_basis","insight":string,"sort_order":number}],"insights":[string],"risks":[string]}.`,
+            },
+            ...fileContent,
+          ],
+        },
+      ],
+      text: {
+        format: {
+          type: 'json_object',
+        },
+      },
+    }),
+  });
 
-  return compareExtractedQuotesWithOpenAI(openAiKey, extractedQuotes, files, language);
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI analysis failed: ${errorText}`);
+  }
+
+  const payload = await response.json();
+
+  return normalizeAnalysis(JSON.parse(getOutputText(payload, 'analysis')), files);
 }
 
 Deno.serve(async (req) => {
