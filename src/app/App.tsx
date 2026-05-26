@@ -2823,7 +2823,7 @@ function ResultsSection({
     ? `${analysis.matchedLowerCount} / ${analysis.matchedCount} ${t.matchedLinesLower}`
     : noDataText;
   const coverageHelper = t.coverageItemsHelper;
-  const handlePreviewReport = () => {
+  const handleOpenReportPreview = () => {
     if (!currentUser?.emailVerified) {
       onRequireVerifiedEmail();
       return;
@@ -2832,7 +2832,7 @@ function ResultsSection({
     setIsReportPreviewOpen(true);
   };
 
-  const handleDownloadReport = () => {
+  const handlePrintReport = () => {
     if (!currentUser?.emailVerified) {
       onRequireVerifiedEmail();
       return;
@@ -2974,31 +2974,9 @@ function ResultsSection({
             </p>
             <Button
               type="button"
-              variant="outlined"
-              fullWidth
-              onClick={handlePreviewReport}
-              sx={{
-                mt: 3,
-                py: 1.15,
-                borderColor: '#b8c9df',
-                borderRadius: '10px',
-                color: '#1e3a5f',
-                cursor: 'pointer',
-                fontWeight: 700,
-                textTransform: 'none',
-                '&:hover': {
-                  borderColor: '#2563eb',
-                  backgroundColor: '#eff6ff',
-                },
-              }}
-            >
-              {getPreviewReportText(language)}
-            </Button>
-            <Button
-              type="button"
               variant="contained"
               fullWidth
-              onClick={handleDownloadReport}
+              onClick={handleOpenReportPreview}
               startIcon={<Download className="h-4 w-4" />}
               sx={{
                 mt: 3,
@@ -3028,7 +3006,7 @@ function ResultsSection({
         files={files}
         analysis={analysis}
         onClose={() => setIsReportPreviewOpen(false)}
-        onDownload={handleDownloadReport}
+        onDownload={handlePrintReport}
       />
     ) : null}
     </>
@@ -3380,13 +3358,6 @@ function getReportModel(t: (typeof copy)[Language], language: Language, files: F
         ]
       : [],
   };
-}
-
-function getPreviewReportText(language: Language) {
-  if (language === 'ko') return '리포트 미리보기';
-  if (language === 'ja') return 'レポートをプレビュー';
-  if (language === 'zh') return '预览报告';
-  return 'Preview report';
 }
 
 function getReportPageLabel(language: Language, pages: number) {
