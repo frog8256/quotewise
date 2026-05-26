@@ -1,5 +1,4 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.106.1';
-import * as pdfjsLib from 'npm:pdfjs-dist@4.10.38/legacy/build/pdf.mjs';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,20 +9,24 @@ const corsHeaders = {
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const MAX_UPLOAD_FILES = 5;
 const GUEST_EXPIRY_HOURS = 24;
-const SIDES: UploadedSide[] = ['A', 'B', 'C', 'D', 'E'];
+const SIDES = ['A', 'B', 'C', 'D', 'E'] as const;
 
-type UploadedSide = 'A' | 'B' | 'C' | 'D' | 'E';
-type ParsedQuoteItem = {
-  itemName: string;
-  rawText: string;
-  totalPrice: number | null;
-  quoteValue: string;
-  pricingBasis: string | null;
+type UploadedSide = (typeof SIDES)[number];
+type VendorAnalysis = {
+  side: UploadedSide;
+  name: string;
+  filename: string;
+};
+type AnalysisCell = {
+  vendorSide: UploadedSide;
+  value: string;
+  rawTerm: string;
+  included: boolean;
+  pricingBasis?: string;
 };
 type AnalysisItem = {
   item_label: string;
-  quote_a_value: string;
-  quote_b_value: string;
+  cells: AnalysisCell[];
   delta_value: string;
   status: 'matched' | 'only_in_a' | 'only_in_b' | 'different_basis';
   insight: string;
@@ -37,8 +40,17 @@ type AnalysisResult = {
   coverageGaps: number;
   matchedLowerCount: number;
   matchedCount: number;
+  vendors: VendorAnalysis[];
   items: AnalysisItem[];
   insights: string[];
+  risks: string[];
+};
+type OutputLanguage = 'en' | 'ko' | 'ja' | 'zh';
+const languageLabels: Record<OutputLanguage, string> = {
+  en: 'English',
+  ko: 'Korean',
+  ja: 'Japanese',
+  zh: 'Simplified Chinese',
 };
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
@@ -75,309 +87,268 @@ function assertPdf(file: File | null, label: string): asserts file is File {
   }
 }
 
-async function extractPdfText(file: File) {
-  const data = new Uint8Array(await file.arrayBuffer());
-  const document = await pdfjsLib.getDocument({
-    data,
-    disableWorker: true,
-    isEvalSupported: false,
-  }).promise;
-  const lines: string[] = [];
-
-  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
-    const page = await document.getPage(pageNumber);
-    const textContent = await page.getTextContent();
-    const groupedLines = new Map<number, Array<{ x: number; text: string }>>();
-
-    for (const item of textContent.items) {
-      if (!('str' in item) || !item.str.trim()) {
-        continue;
-      }
-
-      const transform = 'transform' in item ? item.transform : [0, 0, 0, 0, 0, 0];
-      const x = Number(transform[4] || 0);
-      const y = Math.round(Number(transform[5] || 0) / 3) * 3;
-      const existing = groupedLines.get(y) || [];
-      existing.push({ x, text: item.str.trim() });
-      groupedLines.set(y, existing);
-    }
-
-    [...groupedLines.entries()]
-      .sort(([a], [b]) => b - a)
-      .forEach(([, parts]) => {
-        const line = parts
-          .sort((a, b) => a.x - b.x)
-          .map((part) => part.text)
-          .join(' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-
-        if (line) {
-          lines.push(line);
-        }
-      });
-  }
-
-  return lines.join('\n');
+function sanitizeName(value: string) {
+  return value.replace(/[^a-zA-Z0-9가-힣ぁ-んァ-ン一-龯._ -]/g, '').slice(0, 160) || 'quote.pdf';
 }
 
-function parseMoneyValue(value: string) {
-  const numeric = value.replace(/[^\d.-]/g, '');
-  const parsed = Number(numeric);
-  return Number.isFinite(parsed) ? parsed : null;
+function normalizeCurrency(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return `$${Math.round(value).toLocaleString('en-US')}`;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim();
+  }
+
+  return '-';
 }
 
-function formatCurrency(value: number | null) {
-  if (value === null) {
-    return '-';
+async function fileToDataUrl(file: File) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = '';
+  const chunkSize = 0x8000;
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
   }
 
-  return `$${Math.round(value).toLocaleString('en-US')}`;
+  return `data:application/pdf;base64,${btoa(binary)}`;
 }
 
-function detectPricingBasis(line: string) {
-  const lower = line.toLowerCase();
-
-  if (/(\/\s?kg|per\s+kg|1\s?kg|kg당|킬로|키로)/i.test(lower)) {
-    return 'per_kg';
-  }
-
-  if (/(\/\s?km|per\s+km|1\s?km|km당|거리|distance)/i.test(lower)) {
-    return 'per_km';
-  }
-
-  if (/(fixed|flat|lump|고정|정액|일괄)/i.test(lower)) {
-    return 'fixed';
-  }
-
-  if (/(hour|hr|시간|일당|day|monthly|월)/i.test(lower)) {
-    return 'time_based';
-  }
-
-  return null;
+function bytesToHex(bytes: ArrayBuffer) {
+  return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-function parseQuoteItems(text: string): ParsedQuoteItem[] {
-  const moneyPattern = /(?:[$€¥₩]\s*)?-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?\s*(?:원|엔|달러|usd|krw|jpy)?/gi;
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => line.replace(/\s+/g, ' ').trim())
-    .filter((line) => line.length >= 4);
-
-  const parsedItems: ParsedQuoteItem[] = [];
-
-  for (const line of lines) {
-    const matches = [...line.matchAll(moneyPattern)]
-      .map((match) => match[0])
-      .filter((match) => /[$€¥₩,]|원|엔|달러|usd|krw|jpy/i.test(match) || Number(match.replace(/[^\d.-]/g, '')) >= 10);
-
-    if (matches.length === 0) {
-      continue;
-    }
-
-    const totalPrice = parseMoneyValue(matches[matches.length - 1]);
-
-    if (totalPrice === null || totalPrice <= 0) {
-      continue;
-    }
-
-    const firstAmountIndex = line.indexOf(matches[0]);
-    const leadingText = firstAmountIndex > 0 ? line.slice(0, firstAmountIndex).trim() : line;
-    const itemName = leadingText
-      .replace(/^\d+[.)\-\s]+/, '')
-      .replace(/\b(qty|quantity|unit|price|total|amount|subtotal|견적|합계|수량|단가|금액)\b/gi, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    if (!itemName || itemName.length < 2) {
-      continue;
-    }
-
-    parsedItems.push({
-      itemName,
-      rawText: line,
-      totalPrice,
-      quoteValue: formatCurrency(totalPrice),
-      pricingBasis: detectPricingBasis(line),
-    });
-  }
-
-  return parsedItems.slice(0, 80);
+async function sha256(value: string) {
+  return bytesToHex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)));
 }
 
-function normalizeItemName(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/["'“”]/g, '')
-    .replace(/[^a-z0-9가-힣ぁ-んァ-ン一-龯]+/g, ' ')
-    .replace(/\b(the|and|for|with|item|quote|quotation|total|amount)\b/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+async function createFileFingerprints(files: Array<{ side: UploadedSide; file: File }>) {
+  return Promise.all(
+    files.map(async ({ side, file }) => {
+      const fileHash = bytesToHex(await crypto.subtle.digest('SHA-256', await file.arrayBuffer()));
+
+      return {
+        side,
+        name: file.name,
+        size: file.size,
+        type: file.type || 'application/pdf',
+        hash: fileHash,
+      };
+    }),
+  );
 }
 
-function similarity(a: string, b: string) {
-  const left = normalizeItemName(a);
-  const right = normalizeItemName(b);
-
-  if (!left || !right) {
-    return 0;
-  }
-
-  if (left === right) {
-    return 1;
-  }
-
-  if (left.includes(right) || right.includes(left)) {
-    return 0.82;
-  }
-
-  const leftTokens = new Set(left.split(' '));
-  const rightTokens = new Set(right.split(' '));
-  const intersection = [...leftTokens].filter((token) => rightTokens.has(token)).length;
-  const union = new Set([...leftTokens, ...rightTokens]).size;
-
-  return union ? intersection / union : 0;
+async function createCacheKey(
+  language: OutputLanguage,
+  fingerprints: Array<{ side: UploadedSide; name: string; size: number; type: string; hash: string }>,
+) {
+  return sha256(
+    JSON.stringify({
+      version: 2,
+      model: 'gpt-4.1-mini',
+      language,
+      files: fingerprints.map((item) => ({
+        side: item.side,
+        size: item.size,
+        hash: item.hash,
+      })),
+    }),
+  );
 }
 
-function buildInsight(item: ParsedQuoteItem | null, other: ParsedQuoteItem | null, status: AnalysisItem['status'], delta: number | null) {
-  if (status === 'only_in_a') {
-    return 'This item appears only in Quote A.';
-  }
+function normalizeAnalysis(raw: unknown, files: Array<{ side: UploadedSide; file: File }>): AnalysisResult {
+  const source = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const vendorsRaw = Array.isArray(source.vendors) ? source.vendors : [];
+  const vendors: VendorAnalysis[] = files.map(({ side, file }, index) => {
+    const candidate = vendorsRaw.find((vendor) => vendor && typeof vendor === 'object' && (vendor as Record<string, unknown>).side === side) as
+      | Record<string, unknown>
+      | undefined;
 
-  if (status === 'only_in_b') {
-    return 'This item appears only in Quote B.';
-  }
-
-  if (status === 'different_basis') {
-    return 'The pricing basis differs, so normalize the unit before final approval.';
-  }
-
-  if (delta === null || !item || !other) {
-    return 'Matched line item.';
-  }
-
-  if (delta < 0) {
-    return 'Quote B is lower for this matched line item.';
-  }
-
-  if (delta > 0) {
-    return 'Quote A is lower for this matched line item.';
-  }
-
-  return 'Both quotes are equal for this matched line item.';
-}
-
-function analyzeQuotes(quoteAItems: ParsedQuoteItem[], quoteBItems: ParsedQuoteItem[]): AnalysisResult {
-  const usedB = new Set<number>();
-  const items: AnalysisItem[] = [];
-  let matchedCount = 0;
-  let matchedLowerCount = 0;
-  let totalA = 0;
-  let totalB = 0;
-
-  quoteAItems.forEach((quoteAItem) => {
-    let bestIndex = -1;
-    let bestScore = 0;
-
-    quoteBItems.forEach((quoteBItem, index) => {
-      if (usedB.has(index)) {
-        return;
-      }
-
-      const score = similarity(quoteAItem.itemName, quoteBItem.itemName);
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestIndex = index;
-      }
-    });
-
-    if (bestIndex >= 0 && bestScore >= 0.45) {
-      const quoteBItem = quoteBItems[bestIndex];
-      usedB.add(bestIndex);
-      matchedCount += 1;
-      totalA += quoteAItem.totalPrice || 0;
-      totalB += quoteBItem.totalPrice || 0;
-
-      const delta = (quoteBItem.totalPrice || 0) - (quoteAItem.totalPrice || 0);
-      const isDifferentBasis =
-        Boolean(quoteAItem.pricingBasis || quoteBItem.pricingBasis) &&
-        quoteAItem.pricingBasis !== quoteBItem.pricingBasis;
-
-      if (delta < 0) {
-        matchedLowerCount += 1;
-      }
-
-      items.push({
-        item_label: quoteAItem.itemName,
-        quote_a_value: quoteAItem.quoteValue,
-        quote_b_value: quoteBItem.quoteValue,
-        delta_value: isDifferentBasis ? 'Different basis' : `${delta >= 0 ? '+' : '-'}${formatCurrency(Math.abs(delta))}`,
-        status: isDifferentBasis ? 'different_basis' : 'matched',
-        insight: buildInsight(quoteAItem, quoteBItem, isDifferentBasis ? 'different_basis' : 'matched', delta),
-        sort_order: items.length,
-      });
-      return;
-    }
-
-    items.push({
-      item_label: quoteAItem.itemName,
-      quote_a_value: quoteAItem.quoteValue,
-      quote_b_value: '-',
-      delta_value: 'Only in A',
-      status: 'only_in_a',
-      insight: buildInsight(quoteAItem, null, 'only_in_a', null),
-      sort_order: items.length,
-    });
+    return {
+      side,
+      filename: file.name,
+      name: typeof candidate?.name === 'string' && candidate.name.trim() ? candidate.name.trim() : `Quote ${side}`,
+    };
   });
+  const vendorSides = new Set(vendors.map((vendor) => vendor.side));
+  const itemsRaw = Array.isArray(source.items) ? source.items : [];
+  const items: AnalysisItem[] = itemsRaw.slice(0, 80).map((item, index) => {
+    const row = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
+    const cellsRaw = Array.isArray(row.cells) ? row.cells : [];
+    const cells: AnalysisCell[] = vendors.map((vendor) => {
+      const rawCell = cellsRaw.find(
+        (cell) => cell && typeof cell === 'object' && (cell as Record<string, unknown>).vendorSide === vendor.side,
+      ) as Record<string, unknown> | undefined;
+      const value = normalizeCurrency(rawCell?.value);
+      const included = typeof rawCell?.included === 'boolean' ? rawCell.included : value !== '-';
 
-  quoteBItems.forEach((quoteBItem, index) => {
-    if (usedB.has(index)) {
-      return;
-    }
-
-    items.push({
-      item_label: quoteBItem.itemName,
-      quote_a_value: '-',
-      quote_b_value: quoteBItem.quoteValue,
-      delta_value: 'Only in B',
-      status: 'only_in_b',
-      insight: buildInsight(null, quoteBItem, 'only_in_b', null),
-      sort_order: items.length,
+      return {
+        vendorSide: vendor.side,
+        value: included ? value : '-',
+        rawTerm: typeof rawCell?.rawTerm === 'string' ? rawCell.rawTerm.trim() : '',
+        included,
+        pricingBasis: typeof rawCell?.pricingBasis === 'string' ? rawCell.pricingBasis.trim() : undefined,
+      };
     });
-  });
+    const status = row.status === 'only_in_a' || row.status === 'only_in_b' || row.status === 'different_basis' ? row.status : 'matched';
 
-  const estimatedSavings = Math.max(0, totalA - totalB);
-  const coverageGaps = items.filter((item) => item.status === 'only_in_a' || item.status === 'only_in_b').length;
-  const recommendedQuote = totalB && (!totalA || totalB <= totalA) ? 'Quote B' : 'Quote A';
-  const title = `${recommendedQuote} is the stronger choice`;
-  const summary =
-    matchedCount > 0
-      ? `${recommendedQuote} is lower across matched line items by ${formatCurrency(estimatedSavings)}. Review coverage gaps and different-basis items before final approval.`
-      : 'QuoteWise extracted line items, but could not confidently match overlapping items. Review both documents manually before approval.';
-  const insights = [
-    matchedCount > 0
-      ? `${matchedCount} matched line item${matchedCount === 1 ? '' : 's'} were compared.`
-      : 'No confident line-item matches were found.',
-    coverageGaps > 0
-      ? `${coverageGaps} item${coverageGaps === 1 ? '' : 's'} appear in only one quote.`
-      : 'No coverage gaps were detected.',
-    items.some((item) => item.status === 'different_basis')
-      ? 'At least one item uses a different pricing basis and needs normalization.'
-      : 'No different-basis item was detected by the rule parser.',
-  ];
+    return {
+      item_label: typeof row.item_label === 'string' && row.item_label.trim() ? row.item_label.trim() : `Item ${index + 1}`,
+      cells,
+      delta_value: typeof row.delta_value === 'string' && row.delta_value.trim() ? row.delta_value.trim() : '',
+      status,
+      insight: typeof row.insight === 'string' ? row.insight.trim() : '',
+      sort_order: Number.isFinite(Number(row.sort_order)) ? Number(row.sort_order) : index,
+    };
+  });
+  const coverageGaps =
+    Number(source.coverageGaps) ||
+    items.filter((item) => item.cells.some((cell) => !cell.included) && item.cells.some((cell) => vendorSides.has(cell.vendorSide))).length;
+  const insights = Array.isArray(source.insights)
+    ? source.insights.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())).slice(0, 8)
+    : [];
+  const risks = Array.isArray(source.risks)
+    ? source.risks.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())).slice(0, 8)
+    : [];
 
   return {
-    title,
-    summary,
-    recommendedQuote,
-    estimatedSavings,
+    title: typeof source.title === 'string' && source.title.trim() ? source.title.trim() : 'QuoteWise comparison is ready',
+    summary: typeof source.summary === 'string' && source.summary.trim() ? source.summary.trim() : 'Review the normalized items and vendor differences below.',
+    recommendedQuote:
+      typeof source.recommendedQuote === 'string' && source.recommendedQuote.trim()
+        ? source.recommendedQuote.trim()
+        : vendors[0]?.name || 'Quote A',
+    estimatedSavings: Number.isFinite(Number(source.estimatedSavings)) ? Number(source.estimatedSavings) : 0,
     coverageGaps,
-    matchedLowerCount,
-    matchedCount,
-    items: items.slice(0, 40),
-    insights,
+    matchedLowerCount: Number.isFinite(Number(source.matchedLowerCount)) ? Number(source.matchedLowerCount) : 0,
+    matchedCount: Number.isFinite(Number(source.matchedCount)) ? Number(source.matchedCount) : items.length,
+    vendors,
+    items,
+    insights: insights.length ? insights : ['AI normalized item names and compared vendor quote lines.'],
+    risks,
   };
+}
+
+function getOutputText(payload: { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> }, label: string) {
+  const outputText =
+    typeof payload.output_text === 'string'
+      ? payload.output_text
+      : payload.output?.flatMap((item) => item.content || [])?.find((item) => item.text)?.text;
+
+  if (!outputText) {
+    throw new Error(`OpenAI ${label} did not return JSON text.`);
+  }
+
+  return outputText;
+}
+
+async function extractQuotesWithOpenAI(openAiKey: string, files: Array<{ side: UploadedSide; file: File }>) {
+  const fileContent = await Promise.all(
+    files.map(async ({ side, file }) => ({
+      type: 'input_file',
+      filename: `${side}-${sanitizeName(file.name)}`,
+      file_data: await fileToDataUrl(file),
+    })),
+  );
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${openAiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4.1-mini',
+      input: [
+        {
+          role: 'system',
+          content:
+            'You are QuoteWise extraction engine. Extract structured procurement quotation data from PDFs. Preserve vendor names, item names, raw terms, currencies, units, notes, and pricing basis exactly when possible. Return only valid JSON.',
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'input_text',
+              text:
+                'Extract every provided quotation PDF. Use sides A-E based on filenames. Return this JSON shape exactly: {"quotes":[{"side":"A","vendorName":string,"filename":string,"validityPeriod":string,"currency":string,"items":[{"rawTerm":string,"description":string,"quantity":string,"unit":string,"unitPrice":string,"totalPrice":string,"pricingBasis":string,"included":boolean,"notes":string}],"terms":[string],"hiddenCosts":[string],"risks":[string]}]}. Do not compare yet.',
+            },
+            ...fileContent,
+          ],
+        },
+      ],
+      text: {
+        format: {
+          type: 'json_object',
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI extraction failed: ${errorText}`);
+  }
+
+  const payload = await response.json();
+
+  return JSON.parse(getOutputText(payload, 'extraction'));
+}
+
+async function compareExtractedQuotesWithOpenAI(
+  openAiKey: string,
+  extractedQuotes: unknown,
+  files: Array<{ side: UploadedSide; file: File }>,
+  language: OutputLanguage,
+) {
+  const outputLanguage = languageLabels[language] || languageLabels.en;
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${openAiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4.1-mini',
+      input: [
+        {
+          role: 'system',
+          content:
+            `You are QuoteWise, an expert procurement quotation analyst. Compare already-extracted supplier quotation data. Normalize item terminology, compare prices, detect missing/hidden costs, detect pricing-basis differences, and identify risk factors. Return only valid JSON. Write all user-facing analysis text in ${outputLanguage}. Keep vendor names and rawTerm exactly as written in the extracted data.`,
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'input_text',
+              text:
+                `Compare this extracted quotation JSON. Extracted data: ${JSON.stringify(extractedQuotes)}. Normalize equivalent item names into one item_label in ${outputLanguage}, but preserve each quote's original term in rawTerm exactly as written. Include all vendors A-E that are provided. For each item, provide each vendor cell with value, rawTerm, included, and pricingBasis. Detect only-in-vendor items, different pricing basis, hidden costs, missing items, and risk factors. Write title, summary, item_label, delta_value, insight, insights, and risks in ${outputLanguage}. Keep rawTerm and vendor names untranslated. Use this JSON shape exactly: {"title":string,"summary":string,"recommendedQuote":string,"estimatedSavings":number,"coverageGaps":number,"matchedLowerCount":number,"matchedCount":number,"vendors":[{"side":"A","name":string,"filename":string}],"items":[{"item_label":string,"cells":[{"vendorSide":"A","value":string,"rawTerm":string,"included":boolean,"pricingBasis":string}],"delta_value":string,"status":"matched|only_in_a|only_in_b|different_basis","insight":string,"sort_order":number}],"insights":[string],"risks":[string]}.`,
+            },
+          ],
+        },
+      ],
+      text: {
+        format: {
+          type: 'json_object',
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI comparison failed: ${errorText}`);
+  }
+
+  const payload = await response.json();
+
+  return normalizeAnalysis(JSON.parse(getOutputText(payload, 'comparison')), files);
+}
+
+async function analyzeWithOpenAI(openAiKey: string, files: Array<{ side: UploadedSide; file: File }>, language: OutputLanguage) {
+  const extractedQuotes = await extractQuotesWithOpenAI(openAiKey, files);
+
+  return compareExtractedQuotesWithOpenAI(openAiKey, extractedQuotes, files, language);
 }
 
 Deno.serve(async (req) => {
@@ -395,17 +366,20 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = getRequiredEnv('SUPABASE_URL');
     const serviceRoleKey = getRequiredEnv('SUPABASE_SERVICE_ROLE_KEY');
+    const openAiKey = getRequiredEnv('OPENAI_API_KEY');
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
       },
     });
-
     const formData = await req.formData();
-    const quoteFiles = formData
-      .getAll('quoteFiles')
-      .filter((value): value is File => value instanceof File);
+    const requestedLanguage = formData.get('language');
+    const language: OutputLanguage =
+      requestedLanguage === 'ko' || requestedLanguage === 'ja' || requestedLanguage === 'zh' || requestedLanguage === 'en'
+        ? requestedLanguage
+        : 'en';
+    const quoteFiles = formData.getAll('quoteFiles').filter((value): value is File => value instanceof File);
     const legacyQuoteA = formData.get('quoteA') as File | null;
     const legacyQuoteB = formData.get('quoteB') as File | null;
     const incomingFiles = quoteFiles.length ? quoteFiles : [legacyQuoteA, legacyQuoteB].filter((file): file is File => Boolean(file));
@@ -422,9 +396,15 @@ Deno.serve(async (req) => {
       assertPdf(file, `quoteFiles[${index}]`);
     });
 
+    const files = incomingFiles.map((file, index) => ({
+      side: SIDES[index],
+      file,
+      storagePath: `guests/pending/quote-${SIDES[index].toLowerCase()}.pdf`,
+    }));
+    const cacheFingerprints = await createFileFingerprints(files.map(({ side, file }) => ({ side, file })));
+    const cacheKey = await createCacheKey(language, cacheFingerprints);
     const guestAccessToken = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + GUEST_EXPIRY_HOURS * 60 * 60 * 1000).toISOString();
-
     const { data: job, error: jobError } = await supabase
       .from('comparison_jobs')
       .insert({
@@ -444,45 +424,58 @@ Deno.serve(async (req) => {
 
     jobId = job.id;
 
-    const files: Array<{ side: UploadedSide; file: File; storagePath: string }> = incomingFiles.map((file, index) => {
-      const side = SIDES[index];
+    const storedFiles = files.map((item) => ({
+      ...item,
+      storagePath: `guests/${job.id}/quote-${item.side.toLowerCase()}.pdf`,
+    }));
 
-      return {
-        side,
-        file,
-        storagePath: `guests/${job.id}/quote-${side.toLowerCase()}.pdf`,
-      };
-    });
-    const extractedText: Record<UploadedSide, string> = {
-      A: '',
-      B: '',
-      C: '',
-      D: '',
-      E: '',
-    };
-
-    for (const item of files) {
-      const { error: uploadError } = await supabase.storage
-        .from('quote-files')
-        .upload(item.storagePath, item.file, {
-          contentType: 'application/pdf',
-          upsert: false,
-        });
+    for (const item of storedFiles) {
+      const { error: uploadError } = await supabase.storage.from('quote-files').upload(item.storagePath, item.file, {
+        contentType: 'application/pdf',
+        upsert: false,
+      });
 
       if (uploadError) {
         throw new Error(uploadError.message);
       }
 
       uploadedPaths.push(item.storagePath);
-      extractedText[item.side] = await extractPdfText(item.file);
     }
 
-    const quoteAItems = parseQuoteItems(extractedText.A);
-    const quoteBItems = parseQuoteItems(extractedText.B);
-    const analysis = analyzeQuotes(quoteAItems, quoteBItems);
+    const analysisFiles = storedFiles.map(({ side, file }) => ({ side, file }));
+    const { data: cachedAnalysis } = await supabase
+      .from('comparison_analysis_cache')
+      .select('analysis, hit_count')
+      .eq('cache_key', cacheKey)
+      .maybeSingle();
+    let cacheHit = false;
+    let analysis: AnalysisResult;
 
+    if (cachedAnalysis?.analysis) {
+      cacheHit = true;
+      analysis = normalizeAnalysis(cachedAnalysis.analysis, analysisFiles);
+      await supabase
+        .from('comparison_analysis_cache')
+        .update({
+          hit_count: Number(cachedAnalysis.hit_count || 0) + 1,
+          last_used_at: new Date().toISOString(),
+        })
+        .eq('cache_key', cacheKey);
+    } else {
+      analysis = await analyzeWithOpenAI(openAiKey, analysisFiles, language);
+      await supabase.from('comparison_analysis_cache').upsert({
+        cache_key: cacheKey,
+        language,
+        model: 'gpt-4.1-mini',
+        file_count: storedFiles.length,
+        file_fingerprints: cacheFingerprints,
+        analysis,
+        hit_count: 0,
+        last_used_at: new Date().toISOString(),
+      });
+    }
     const { error: filesError } = await supabase.from('uploaded_files').insert(
-      files.map((item) => ({
+      storedFiles.map((item) => ({
         job_id: job.id,
         user_id: null,
         side: item.side,
@@ -490,7 +483,6 @@ Deno.serve(async (req) => {
         storage_path: item.storagePath,
         mime_type: item.file.type || 'application/pdf',
         file_size: item.file.size,
-        extracted_text: extractedText[item.side],
       })),
     );
 
@@ -498,44 +490,12 @@ Deno.serve(async (req) => {
       throw new Error(filesError.message);
     }
 
-    const parsedItemsBySide: Record<UploadedSide, ParsedQuoteItem[]> = {
-      A: quoteAItems,
-      B: quoteBItems,
-      C: parseQuoteItems(extractedText.C),
-      D: parseQuoteItems(extractedText.D),
-      E: parseQuoteItems(extractedText.E),
-    };
-    const quoteItemPayload = files.flatMap(({ side }) =>
-      parsedItemsBySide[side].map((item) => ({
-          job_id: job.id,
-          side,
-          item_name: item.itemName,
-          total_price: item.totalPrice,
-          pricing_basis: item.pricingBasis,
-          raw_text: item.rawText,
-      })),
-    );
-    let quoteItemRowCount = 0;
-
-    if (quoteItemPayload.length > 0) {
-      const { data: insertedQuoteItems, error: quoteItemsError } = await supabase
-        .from('quote_items')
-        .insert(quoteItemPayload)
-        .select('id');
-
-      if (quoteItemsError) {
-        throw new Error(quoteItemsError.message);
-      }
-
-      quoteItemRowCount = insertedQuoteItems?.length || 0;
-    }
-
     const { error: comparisonItemsError } = await supabase.from('comparison_items').insert(
-      analysis.items.map((item) => ({
+      analysis.items.slice(0, 80).map((item) => ({
         job_id: job.id,
         item_label: item.item_label,
-        quote_a_value: item.quote_a_value,
-        quote_b_value: item.quote_b_value,
+        quote_a_value: item.cells.find((cell) => cell.vendorSide === 'A')?.value || '-',
+        quote_b_value: item.cells.find((cell) => cell.vendorSide === 'B')?.value || '-',
         delta_value: item.delta_value,
         status: item.status,
         insight: item.insight,
@@ -548,10 +508,10 @@ Deno.serve(async (req) => {
     }
 
     const { error: insightsError } = await supabase.from('comparison_insights').insert(
-      analysis.insights.map((insight, index) => ({
+      [...analysis.insights, ...analysis.risks].slice(0, 16).map((insight, index) => ({
         job_id: job.id,
         insight,
-        severity: index === 0 ? 'info' : 'warning',
+        severity: index < analysis.insights.length ? 'info' : 'warning',
         sort_order: index,
       })),
     );
@@ -579,11 +539,7 @@ Deno.serve(async (req) => {
       guestAccessToken: job.guest_access_token,
       expiresAt: job.expires_at,
       analysis,
-      extracted: {
-        quoteAItemCount: quoteAItems.length,
-        quoteBItemCount: quoteBItems.length,
-        quoteItemRowCount,
-      },
+      cacheHit,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unexpected upload error.';

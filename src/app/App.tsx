@@ -20,6 +20,7 @@ import supabase from './supabase';
 type ActiveView = 'home' | 'compare' | 'analyzing' | 'results' | 'history' | 'terms';
 type Language = 'en' | 'ko' | 'ja' | 'zh';
 type AuthMode = 'login' | 'signup';
+type AnalysisStage = 'uploading' | 'cache' | 'extracting' | 'comparing' | 'finalizing';
 type UserSession = {
   name: string;
   email: string;
@@ -44,14 +45,27 @@ type CreateComparisonJobResponse = {
   guestAccessToken: string;
   expiresAt: string;
   analysis?: QuoteAnalysis;
+  cacheHit?: boolean;
 };
 type QuoteAnalysisItem = {
   item_label: string;
-  quote_a_value: string;
-  quote_b_value: string;
+  cells?: Array<{
+    vendorSide: 'A' | 'B' | 'C' | 'D' | 'E';
+    value: string;
+    rawTerm: string;
+    included: boolean;
+    pricingBasis?: string;
+  }>;
+  quote_a_value?: string;
+  quote_b_value?: string;
   delta_value: string;
   status: 'matched' | 'only_in_a' | 'only_in_b' | 'different_basis';
   insight: string;
+};
+type QuoteAnalysisVendor = {
+  side: 'A' | 'B' | 'C' | 'D' | 'E';
+  name: string;
+  filename: string;
 };
 type QuoteAnalysis = {
   title: string;
@@ -61,8 +75,10 @@ type QuoteAnalysis = {
   coverageGaps: number;
   matchedLowerCount: number;
   matchedCount: number;
+  vendors?: QuoteAnalysisVendor[];
   items: QuoteAnalysisItem[];
   insights: string[];
+  risks?: string[];
 };
 
 const authStorageKey = 'quotewise.user';
@@ -89,15 +105,15 @@ const copy = {
     compare: 'Compare',
     history: 'History',
     eyebrow: 'Procurement intelligence',
-    headline: ['Two quotations.', 'One clear decision.'],
-    lead: 'QuoteWise reads your supplier PDFs, aligns line items across vendors, and surfaces the differences that actually move the needle.',
+    headline: ['Multiple quotations.', 'One clear decision.'],
+    lead: 'QuoteWise reads 2 to 5 supplier PDFs, aligns line items across vendors, and surfaces the differences that actually move the needle.',
     start: 'Start a comparison',
     viewHistory: 'View history',
     previewHeaders: ['Item', 'Quote A', 'Quote B', 'Delta'],
     recommendation: 'Recommendation',
     recommendationValue: 'Quote B saves $190',
-    compareTitle: 'Upload two supplier quotations',
-    compareCopy: 'Drop in two PDF quotes and QuoteWise will prepare them for line-by-line comparison.',
+    compareTitle: 'Upload supplier quotations',
+    compareCopy: 'Add 2 to 5 supplier PDF quotes and QuoteWise will prepare them for line-by-line comparison.',
     uploadFirst: 'Upload first quotation',
     uploadSecond: 'Upload second quotation',
     uploadHelp: 'Choose a PDF file or drag it here.',
@@ -114,6 +130,9 @@ const copy = {
     resultsTitle: 'Quote B is the stronger choice',
     resultsCopy: 'Quote B is lower overall and wins on setup cost and support pricing. Quote A is only cheaper on the display line.',
     totalSavings: 'Estimated savings',
+    matchedLineDelta: 'Matched line-item delta',
+    matchedLinesLower: 'matched lines are lower',
+    coverageItemsHelper: 'Items appear in only one quote',
     recommendedVendor: 'Recommended quote',
     matchedItems: 'Matched items',
     coverageGaps: 'Coverage gaps',
@@ -199,15 +218,15 @@ const copy = {
     compare: '비교',
     history: '기록',
     eyebrow: '구매 의사결정 인텔리전스',
-    headline: ['두 개의 견적서.', '하나의 명확한 결정.'],
-    lead: 'QuoteWise는 공급업체 PDF를 읽고, 벤더별 항목을 맞춰 비교하며, 실제 의사결정에 영향을 주는 차이를 선명하게 보여줍니다.',
+    headline: ['여러 개의 견적서.', '하나의 명확한 결정.'],
+    lead: 'QuoteWise는 공급업체 PDF를 2개에서 최대 5개까지 읽고, 벤더별 항목을 맞춰 비교하며, 실제 의사결정에 영향을 주는 차이를 선명하게 보여줍니다.',
     start: '비교 시작하기',
     viewHistory: '기록 보기',
     previewHeaders: ['항목', '견적 A', '견적 B', '차이'],
     recommendation: '추천',
     recommendationValue: '견적 B로 $190 절감',
-    compareTitle: '공급업체 견적서 두 개를 업로드하세요',
-    compareCopy: 'PDF 견적서 두 개를 올리면 QuoteWise가 항목별 비교를 준비합니다.',
+    compareTitle: '공급업체 견적서를 업로드하세요',
+    compareCopy: 'PDF 견적서를 2개에서 최대 5개까지 올리면 QuoteWise가 항목별 비교를 준비합니다.',
     uploadFirst: '첫 번째 견적서 업로드',
     uploadSecond: '두 번째 견적서 업로드',
     uploadHelp: 'PDF 파일을 선택하거나 여기에 끌어다 놓으세요.',
@@ -224,6 +243,9 @@ const copy = {
     resultsTitle: '견적 B가 더 유리합니다',
     resultsCopy: '견적 B는 전체 비용이 더 낮고 설치비와 지원 비용에서 우세합니다. 견적 A는 디스플레이 항목에서만 더 저렴합니다.',
     totalSavings: '예상 절감액',
+    matchedLineDelta: '매칭 항목 기준 차이',
+    matchedLinesLower: '개 매칭 항목에서 더 낮습니다',
+    coverageItemsHelper: '한 견적서에만 있는 항목입니다',
     recommendedVendor: '추천 견적',
     matchedItems: '매칭된 항목',
     coverageGaps: '포함 범위 차이',
@@ -292,15 +314,15 @@ const copy = {
     compare: '比較',
     history: '履歴',
     eyebrow: '購買インテリジェンス',
-    headline: ['2つの見積書。', 'ひとつの明確な判断。'],
-    lead: 'QuoteWiseは仕入先のPDFを読み取り、ベンダー間の明細をそろえて、意思決定に本当に効く差分を可視化します。',
+    headline: ['複数の見積書。', 'ひとつの明確な判断。'],
+    lead: 'QuoteWiseは2〜5件の仕入先PDFを読み取り、ベンダー間の明細をそろえて、意思決定に本当に効く差分を可視化します。',
     start: '比較を開始',
     viewHistory: '履歴を見る',
     previewHeaders: ['項目', '見積 A', '見積 B', '差分'],
     recommendation: '推奨',
     recommendationValue: '見積 Bで$190削減',
-    compareTitle: '2つの仕入先見積書をアップロード',
-    compareCopy: '2つのPDF見積書をアップロードすると、QuoteWiseが明細ごとの比較を準備します。',
+    compareTitle: '仕入先見積書をアップロード',
+    compareCopy: '2〜5件のPDF見積書を追加すると、QuoteWiseが明細ごとの比較を準備します。',
     uploadFirst: '1つ目の見積書をアップロード',
     uploadSecond: '2つ目の見積書をアップロード',
     uploadHelp: 'PDFファイルを選択するか、ここにドラッグしてください。',
@@ -317,6 +339,9 @@ const copy = {
     resultsTitle: '見積 Bがより有利です',
     resultsCopy: '見積 Bは全体コストが低く、設置費とサポート費で優位です。見積 Aが安いのはディスプレイ項目のみです。',
     totalSavings: '推定削減額',
+    matchedLineDelta: '一致明細の差額',
+    matchedLinesLower: '件の一致明細でより低価格です',
+    coverageItemsHelper: '一方の見積書にのみ含まれる項目です',
     recommendedVendor: '推奨見積',
     matchedItems: '照合済み項目',
     coverageGaps: '含まれる範囲の差',
@@ -385,15 +410,15 @@ const copy = {
     compare: '比较',
     history: '历史',
     eyebrow: '采购智能',
-    headline: ['两份报价。', '一个清晰决定。'],
-    lead: 'QuoteWise 读取供应商 PDF，对齐不同供应商的明细项目，并突出真正影响决策的差异。',
+    headline: ['多份报价。', '一个清晰决定。'],
+    lead: 'QuoteWise 可读取 2 到 5 份供应商 PDF，对齐不同供应商的明细项目，并突出真正影响决策的差异。',
     start: '开始比较',
     viewHistory: '查看历史',
     previewHeaders: ['项目', '报价 A', '报价 B', '差异'],
     recommendation: '建议',
     recommendationValue: '选择报价 B 可节省 $190',
-    compareTitle: '上传两份供应商报价',
-    compareCopy: '上传两份 PDF 报价，QuoteWise 会准备逐项比较。',
+    compareTitle: '上传供应商报价',
+    compareCopy: '添加 2 到 5 份供应商 PDF 报价，QuoteWise 会准备逐项比较。',
     uploadFirst: '上传第一份报价',
     uploadSecond: '上传第二份报价',
     uploadHelp: '选择 PDF 文件或拖放到这里。',
@@ -410,6 +435,9 @@ const copy = {
     resultsTitle: '报价 B 更有优势',
     resultsCopy: '报价 B 总体成本更低，并且在安装费用和支持费用方面更有优势。报价 A 仅在显示器项目上更便宜。',
     totalSavings: '预计节省',
+    matchedLineDelta: '匹配项目差额',
+    matchedLinesLower: '个匹配项目价格更低',
+    coverageItemsHelper: '仅出现在一份报价中的项目',
     recommendedVendor: '推荐报价',
     matchedItems: '匹配项目',
     coverageGaps: '范围差异',
@@ -684,6 +712,7 @@ export default function App() {
   const [isEmailAuthLoading, setIsEmailAuthLoading] = useState(false);
   const [isComparisonUploadLoading, setIsComparisonUploadLoading] = useState(false);
   const [currentAnalysis, setCurrentAnalysis] = useState<QuoteAnalysis | null>(null);
+  const [analysisStage, setAnalysisStage] = useState<AnalysisStage>('uploading');
   const file1 = uploadedFiles[0] || null;
   const file2 = uploadedFiles[1] || null;
   const t = copy[language];
@@ -1069,11 +1098,22 @@ export default function App() {
 
     setIsComparisonUploadLoading(true);
     setErrorMessage('');
+    setAnalysisStage('uploading');
+    setActiveView('analyzing');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    const stageTimers = [
+      window.setTimeout(() => setAnalysisStage('cache'), 700),
+      window.setTimeout(() => setAnalysisStage('extracting'), 1800),
+      window.setTimeout(() => setAnalysisStage('comparing'), 5200),
+      window.setTimeout(() => setAnalysisStage('finalizing'), 9800),
+    ];
 
     const formData = new FormData();
     uploadedFiles.forEach((file) => {
       formData.append('quoteFiles', file);
     });
+    formData.append('language', language);
 
     try {
       const { data, error } = await supabaseClient.functions.invoke<CreateComparisonJobResponse>(
@@ -1085,16 +1125,20 @@ export default function App() {
 
       if (error || !data?.jobId) {
         setErrorMessage(error?.message || 'Failed to upload quotation files.');
+        setActiveView('compare');
         return;
       }
 
+      setAnalysisStage(data.cacheHit ? 'cache' : 'finalizing');
       setCurrentAnalysis(data.analysis || null);
       console.log('Comparison job created:', data.jobId);
-      setActiveView('analyzing');
+      setActiveView('results');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Failed to upload quotation files.');
+      setActiveView('compare');
     } finally {
+      stageTimers.forEach((timer) => window.clearTimeout(timer));
       setIsComparisonUploadLoading(false);
     }
   };
@@ -1262,7 +1306,7 @@ export default function App() {
           />
         ) : null}
 
-        {activeView === 'analyzing' ? <AnalyzingSection t={t} /> : null}
+        {activeView === 'analyzing' ? <AnalyzingSection t={t} language={language} stage={analysisStage} /> : null}
 
         {activeView === 'results' ? (
           <ResultsSection
@@ -2571,16 +2615,101 @@ function UploadCard({
   );
 }
 
-function AnalyzingSection({ t }: { t: (typeof copy)[Language] }) {
+const analysisStageLabels: Record<
+  Language,
+  Record<AnalysisStage, { title: string; copy: string }>
+> = {
+  en: {
+    uploading: { title: 'Uploading files', copy: 'Securely preparing your quotation PDFs.' },
+    cache: { title: 'Checking previous analyses', copy: 'QuoteWise looks for an existing result for this exact file set.' },
+    extracting: { title: 'Reading quotation details', copy: 'AI extracts vendors, line items, prices, terms, and hidden-cost notes.' },
+    comparing: { title: 'Comparing normalized items', copy: 'Equivalent terms are aligned and pricing-basis differences are detected.' },
+    finalizing: { title: 'Preparing results', copy: 'The summary, insights, and report-ready table are being assembled.' },
+  },
+  ko: {
+    uploading: { title: '파일 업로드 중', copy: '견적서 PDF를 안전하게 준비하고 있습니다.' },
+    cache: { title: '기존 분석 확인 중', copy: '동일한 파일 조합의 분석 결과가 있는지 확인합니다.' },
+    extracting: { title: '견적 정보 읽는 중', copy: 'AI가 업체명, 항목, 금액, 조건, 숨겨진 비용을 추출합니다.' },
+    comparing: { title: '정규화 항목 비교 중', copy: '동일 의미의 항목을 맞추고 계산 기준 차이를 탐지합니다.' },
+    finalizing: { title: '결과 정리 중', copy: '요약, 핵심 인사이트, 리포트용 표를 준비하고 있습니다.' },
+  },
+  ja: {
+    uploading: { title: 'ファイルをアップロード中', copy: '見積PDFを安全に準備しています。' },
+    cache: { title: '過去の分析を確認中', copy: '同じファイル構成の分析結果があるか確認しています。' },
+    extracting: { title: '見積情報を読み取り中', copy: 'AIが会社名、項目、価格、条件、隠れた費用を抽出します。' },
+    comparing: { title: '正規化した項目を比較中', copy: '同等の項目を揃え、計算基準の違いを検出します。' },
+    finalizing: { title: '結果を準備中', copy: '要約、インサイト、レポート用テーブルを作成しています。' },
+  },
+  zh: {
+    uploading: { title: '正在上传文件', copy: '正在安全准备报价 PDF。' },
+    cache: { title: '正在检查已有分析', copy: 'QuoteWise 会查找这组文件是否已有结果。' },
+    extracting: { title: '正在读取报价信息', copy: 'AI 正在提取供应商、项目、价格、条款和隐藏成本。' },
+    comparing: { title: '正在比较标准化项目', copy: '系统正在对齐等价项目并识别计价基准差异。' },
+    finalizing: { title: '正在整理结果', copy: '正在生成摘要、关键洞察和报告表格。' },
+  },
+};
+
+const analysisStageOrder: AnalysisStage[] = ['uploading', 'cache', 'extracting', 'comparing', 'finalizing'];
+
+function AnalyzingSection({
+  t,
+  language,
+  stage,
+}: {
+  t: (typeof copy)[Language];
+  language: Language;
+  stage: AnalysisStage;
+}) {
+  const labels = analysisStageLabels[language];
+  const activeIndex = analysisStageOrder.indexOf(stage);
+  const activeLabel = labels[stage];
+
   return (
     <section className="mx-auto flex min-h-[520px] max-w-7xl items-center justify-center px-5 py-16 md:px-8">
-      <div className="max-w-xl rounded-2xl border border-[#dbe5f1] bg-white p-10 text-center shadow-[0_22px_54px_rgba(15,35,65,0.08)]">
+      <div className="w-full max-w-2xl rounded-2xl border border-[#dbe5f1] bg-white p-8 shadow-[0_22px_54px_rgba(15,35,65,0.08)] md:p-10">
         <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full bg-[#eff6ff] text-[#2563eb]">
           <Loader2 className="h-7 w-7 animate-spin" />
         </div>
-        <p className="mb-3 text-sm font-bold uppercase tracking-[0.2em] text-[#2563eb]">{t.compare}</p>
-        <h2 className="text-3xl font-semibold text-[#10243f]">{t.analyzingTitle}</h2>
-        <p className="mt-4 text-base leading-7 text-slate-600">{t.analyzingCopy}</p>
+        <div className="text-center">
+          <p className="mb-3 text-sm font-bold uppercase tracking-[0.2em] text-[#2563eb]">{t.compare}</p>
+          <h2 className="text-3xl font-semibold text-[#10243f]">{activeLabel.title}</h2>
+          <p className="mt-4 text-base leading-7 text-slate-600">{activeLabel.copy}</p>
+        </div>
+        <div className="mt-8 space-y-3">
+          {analysisStageOrder.map((step, index) => {
+            const isDone = index < activeIndex;
+            const isActive = index === activeIndex;
+
+            return (
+              <div
+                key={step}
+                className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
+                  isActive
+                    ? 'border-[#93b4df] bg-[#eff6ff]'
+                    : isDone
+                      ? 'border-[#c8d7eb] bg-white'
+                      : 'border-[#e7edf5] bg-[#f8fbff]'
+                }`}
+              >
+                <div
+                  className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
+                    isDone
+                      ? 'bg-emerald-50 text-emerald-600'
+                      : isActive
+                        ? 'bg-[#2563eb] text-white'
+                        : 'bg-white text-slate-400'
+                  }`}
+                >
+                  {isDone ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-[#10243f]">{labels[step].title}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{labels[step].copy}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </section>
   );
@@ -2603,10 +2732,21 @@ function ResultsSection({
   onRequireVerifiedEmail: () => void;
   onNewComparison: () => void;
 }) {
+  const vendors =
+    analysis?.vendors?.length
+      ? analysis.vendors
+      : [
+          { side: 'A' as const, name: t.quoteA, filename: files[0]?.name || t.selectedFirst },
+          { side: 'B' as const, name: t.quoteB, filename: files[1]?.name || t.selectedSecond },
+        ];
   const rows = analysis?.items.length
     ? analysis.items
     : resultRows.map((row) => ({
         item_label: row.item,
+        cells: [
+          { vendorSide: 'A' as const, value: row.quoteA, rawTerm: row.item, included: row.quoteA !== 'Not included' },
+          { vendorSide: 'B' as const, value: row.quoteB, rawTerm: row.item, included: row.quoteB !== 'Not included' },
+        ],
         quote_a_value: row.quoteA,
         quote_b_value: row.quoteB,
         delta_value: getDeltaValue(row, t),
@@ -2620,15 +2760,13 @@ function ResultsSection({
                 : ('matched' as const),
         insight: row.note,
       }));
-  const insights = analysis?.insights.length ? analysis.insights : t.insightItems;
+  const insights = analysis?.insights.length ? [...analysis.insights, ...(analysis.risks || [])] : t.insightItems;
   const estimatedSavings = analysis ? `$${Math.round(analysis.estimatedSavings).toLocaleString('en-US')}` : '$190';
   const recommendedQuote = analysis?.recommendedQuote || t.quoteB;
   const matchedHelper = analysis
-    ? `${analysis.matchedLowerCount} of ${analysis.matchedCount} matched lines are lower`
-    : '3 of 4 matched lines are lower';
-  const coverageHelper = analysis
-    ? `${analysis.coverageGaps} items appear in only one quote`
-    : 'Items appear in only one quote';
+    ? `${analysis.matchedLowerCount} / ${analysis.matchedCount} ${t.matchedLinesLower}`
+    : `3 / 4 ${t.matchedLinesLower}`;
+  const coverageHelper = t.coverageItemsHelper;
   const handleDownloadReport = () => {
     if (!currentUser?.emailVerified) {
       onRequireVerifiedEmail();
@@ -2671,7 +2809,7 @@ function ResultsSection({
       </div>
 
       <div className="mb-6 grid gap-4 md:grid-cols-3">
-        <MetricCard label={t.totalSavings} value={estimatedSavings} helper="Matched line-item delta" />
+        <MetricCard label={t.totalSavings} value={estimatedSavings} helper={t.matchedLineDelta} />
         <MetricCard label={t.recommendedVendor} value={recommendedQuote} helper={matchedHelper} />
         <MetricCard label={t.coverageGaps} value={String(analysis?.coverageGaps ?? 2)} helper={coverageHelper} />
       </div>
@@ -2687,24 +2825,40 @@ function ResultsSection({
             </p>
           </div>
 
-          <div className="grid grid-cols-[1.2fr_0.7fr_0.7fr_0.5fr] gap-4 border-b border-[#eef3f8] px-6 py-4 text-sm font-bold text-slate-500">
-            <div>{t.previewHeaders[0]}</div>
-            <div className="text-right">{t.quoteA}</div>
-            <div className="text-right">{t.quoteB}</div>
+          <div
+            className="grid gap-4 border-b border-[#eef3f8] px-6 py-4 text-sm font-bold text-slate-500"
+            style={{ gridTemplateColumns: `minmax(180px,1.15fr) repeat(${vendors.length}, minmax(120px,0.8fr)) minmax(110px,0.6fr)` }}
+          >
+            <div>항목</div>
+            {vendors.map((vendor) => (
+              <div key={vendor.side} className="text-right">
+                {vendor.name}
+              </div>
+            ))}
             <div className="text-right">{t.delta}</div>
           </div>
 
           {rows.map((row) => (
             <div
-              key={`${row.item_label}-${row.quote_a_value}-${row.quote_b_value}`}
-              className="grid grid-cols-[1.2fr_0.7fr_0.7fr_0.5fr] gap-4 border-b border-[#eef3f8] px-6 py-4 last:border-b-0"
+              key={`${row.item_label}-${row.delta_value}`}
+              className="grid gap-4 border-b border-[#eef3f8] px-6 py-4 last:border-b-0"
+              style={{ gridTemplateColumns: `minmax(180px,1.15fr) repeat(${vendors.length}, minmax(120px,0.8fr)) minmax(110px,0.6fr)` }}
             >
               <div>
                 <p className="font-semibold text-[#10243f]">{row.item_label}</p>
                 <p className="mt-1 text-xs leading-5 text-slate-500">{row.insight}</p>
               </div>
-              <QuoteValue value={row.quote_a_value} />
-              <QuoteValue value={row.quote_b_value} />
+              {vendors.map((vendor) => {
+                const cell = row.cells?.find((item) => item.vendorSide === vendor.side);
+
+                return (
+                  <QuoteValue
+                    key={vendor.side}
+                    value={cell?.included === false ? '-' : cell?.value || '-'}
+                    rawTerm={cell?.rawTerm}
+                  />
+                );
+              })}
               <DeltaValue
                 value={row.status === 'different_basis' && language !== 'en' ? t.differentBasis : row.delta_value}
                 tone={getAnalysisTone(row.status, row.delta_value)}
@@ -2765,12 +2919,22 @@ function ResultsSection({
   );
 }
 
-function QuoteValue({ value }: { value: string }) {
+function QuoteValue({ value, rawTerm }: { value: string; rawTerm?: string }) {
   if (value === 'Not included' || value === '-') {
-    return <div className="text-right text-lg font-semibold text-amber-600">-</div>;
+    return (
+      <div className="text-right">
+        <p className="text-lg font-semibold text-amber-600">-</p>
+        {rawTerm ? <p className="mt-1 text-xs font-medium text-slate-400">{rawTerm}</p> : null}
+      </div>
+    );
   }
 
-  return <div className="text-right font-semibold text-slate-700">{value}</div>;
+  return (
+    <div className="text-right">
+      <p className="font-semibold text-slate-700">{value}</p>
+      {rawTerm ? <p className="mt-1 text-xs font-medium text-slate-400">{rawTerm}</p> : null}
+    </div>
+  );
 }
 
 function getAnalysisTone(status: QuoteAnalysisItem['status'], deltaValue: string) {
