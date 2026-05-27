@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@mui/material';
 import Logo from './components/Logo';
-import supabase from './supabase';
+import supabase, { supabaseConfig } from './supabase';
 
 type ActiveView = 'home' | 'compare' | 'analyzing' | 'results' | 'history' | 'terms';
 type Language = 'en' | 'ko' | 'ja' | 'zh';
@@ -2843,9 +2843,14 @@ function ResultsSection({
     setIsPdfLanguageOpen(true);
   };
 
-  const handleDownloadPdf = (pdfLanguage: Language) => {
-    downloadAnalysisReport(copy[pdfLanguage], pdfLanguage, files, analysis);
-    setIsPdfLanguageOpen(false);
+  const handleDownloadPdf = async (pdfLanguage: Language) => {
+    try {
+      await downloadAnalysisReport(copy[pdfLanguage], pdfLanguage, files, analysis);
+      setIsPdfLanguageOpen(false);
+    } catch (error) {
+      console.error(error);
+      window.alert(error instanceof Error ? error.message : 'Failed to generate PDF');
+    }
   };
 
   const handleRequestExcelDownload = () => {
@@ -3665,233 +3670,46 @@ function downloadSummaryExcel(t: (typeof copy)[Language], language: Language, fi
   URL.revokeObjectURL(url);
 }
 
-function downloadAnalysisReport(t: (typeof copy)[Language], language: Language, files: File[], analysis: QuoteAnalysis | null) {
+async function downloadAnalysisReport(t: (typeof copy)[Language], language: Language, files: File[], analysis: QuoteAnalysis | null) {
   const report = getReportModel(t, language, files, analysis);
-  const vendorHeaders = report.vendors.map((vendor) => `<th>${escapeHtml(vendor)}</th>`).join('');
-  const emptyRows = `
-        <tr>
-          <td colspan="${report.vendors.length + 2}" class="empty">${escapeHtml(getNoDataText(language))}</td>
-        </tr>
-      `;
-  const rows = report.rows.length
-    ? report.rows
-        .map(
-          (row) => `
-        <tr>
-          <td>
-            <strong>${escapeHtml(row.itemLabel)}</strong>
-            <span>${escapeHtml(row.insight)}</span>
-          </td>
-          ${row.cells
-            .map(
-              (cell) => `
-                <td>
-                  ${escapeHtml(cell.value)}
-                  ${cell.rawTerm ? `<span>${escapeHtml(cell.rawTerm)}</span>` : ''}
-                </td>
-              `,
-            )
-            .join('')}
-          <td>${escapeHtml(row.delta)}</td>
-        </tr>
-      `,
-        )
-        .join('')
-    : emptyRows;
-  const insights = (report.insights.length ? report.insights : [getNoDataText(language)])
-    .map((item) => `<li>${escapeHtml(item)}</li>`)
-    .join('');
-  const reportHtml = `
-    <!doctype html>
-    <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>QuoteWise Analysis Report</title>
-        <style>
-          @page { margin: 24mm; }
-          * { box-sizing: border-box; }
-          body {
-            margin: 0;
-            color: #10243f;
-            font-family: Inter, Arial, sans-serif;
-            background: #ffffff;
-          }
-          .report {
-            max-width: 920px;
-            margin: 0 auto;
-            padding: 48px;
-          }
-          .eyebrow {
-            color: #2563eb;
-            font-size: 12px;
-            font-weight: 800;
-            letter-spacing: 0.18em;
-            text-transform: uppercase;
-          }
-          h1 {
-            margin: 12px 0 16px;
-            font-size: 36px;
-            line-height: 1.15;
-          }
-          .lead {
-            max-width: 760px;
-            color: #475569;
-            font-size: 16px;
-            line-height: 1.7;
-          }
-          .meta {
-            margin: 28px 0;
-            padding: 18px 20px;
-            border: 1px solid #dbe5f1;
-            border-radius: 12px;
-            background: #f8fbff;
-            color: #475569;
-            font-size: 14px;
-          }
-          .metrics {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 14px;
-            margin: 28px 0;
-          }
-          .metric {
-            padding: 18px;
-            border: 1px solid #dbe5f1;
-            border-radius: 12px;
-          }
-          .metric span {
-            display: block;
-            color: #64748b;
-            font-size: 11px;
-            font-weight: 800;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-          }
-          .metric strong {
-            display: block;
-            margin-top: 10px;
-            font-size: 26px;
-          }
-          h2 {
-            margin: 34px 0 14px;
-            font-size: 20px;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            border: 1px solid #dbe5f1;
-            border-radius: 12px;
-            overflow: hidden;
-          }
-          th, td {
-            padding: 14px 16px;
-            border-bottom: 1px solid #e7edf5;
-            text-align: right;
-            vertical-align: top;
-            font-size: 14px;
-          }
-          th:first-child, td:first-child {
-            text-align: left;
-            width: 42%;
-          }
-          td span {
-            display: block;
-            margin-top: 6px;
-            color: #64748b;
-            font-size: 12px;
-            line-height: 1.5;
-          }
-          .empty {
-            color: #64748b;
-            font-weight: 700;
-            text-align: center !important;
-          }
-          ul {
-            margin: 0;
-            padding-left: 22px;
-            color: #475569;
-            line-height: 1.8;
-          }
-          .recommendation {
-            margin-top: 28px;
-            padding: 18px 20px;
-            border: 1px solid #b8c9df;
-            border-radius: 12px;
-            background: #f8fbff;
-            font-weight: 800;
-          }
-          .actions {
-            margin-top: 32px;
-          }
-          .actions button {
-            border: 0;
-            border-radius: 10px;
-            background: #1e3a5f;
-            color: white;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 800;
-            padding: 12px 18px;
-          }
-          @media print {
-            .actions { display: none; }
-            .report { padding: 0; }
-          }
-        </style>
-      </head>
-      <body>
-        <main class="report">
-          <div class="eyebrow">QuoteWise</div>
-          <h1>${escapeHtml(report.title)}</h1>
-          <p class="lead">${escapeHtml(report.summary)}</p>
-          <div class="meta">
-            <strong>${escapeHtml(t.reportPreparedBy)}</strong><br />
-            ${escapeHtml(report.quotePair)}
-          </div>
-          <section class="metrics">
-            <div class="metric"><span>${escapeHtml(t.totalSavings)}</span><strong>${escapeHtml(report.estimatedSavings)}</strong></div>
-            <div class="metric"><span>${escapeHtml(t.recommendedVendor)}</span><strong>${escapeHtml(report.recommendedQuote)}</strong></div>
-            <div class="metric"><span>${escapeHtml(t.coverageGaps)}</span><strong>${escapeHtml(report.coverageGaps)}</strong></div>
-          </section>
-          <h2>${escapeHtml(t.summary)}</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>${escapeHtml(t.previewHeaders[0])}</th>
-                ${vendorHeaders}
-                <th>${escapeHtml(t.delta)}</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
-          <h2>${escapeHtml(t.keyInsights)}</h2>
-          <ul>${insights}</ul>
-          <div class="recommendation">${escapeHtml(t.recommendation)}: ${escapeHtml(report.recommendation)}</div>
-          <div class="actions">
-            <button onclick="window.print()">${escapeHtml(t.reportDownload)}</button>
-          </div>
-        </main>
-        <script>
-          window.addEventListener('load', () => {
-            setTimeout(() => {
-              window.focus();
-              window.print();
-            }, 250);
-          });
-        </script>
-      </body>
-    </html>
-  `;
-  const blob = new Blob([reportHtml], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const reportWindow = window.open(url, '_blank', 'width=960,height=1200');
+  const response = await fetch(`${supabaseConfig.supabaseUrl}/functions/v1/generate-report-pdf`, {
+    method: 'POST',
+    headers: {
+      apikey: supabaseConfig.supabaseKey,
+      Authorization: `Bearer ${supabaseConfig.supabaseKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      labels: {
+        summary: t.summary,
+        totalSavings: t.totalSavings,
+        recommendedVendor: t.recommendedVendor,
+        coverageGaps: t.coverageGaps,
+        item: t.previewHeaders[0],
+        delta: t.delta,
+        keyInsights: t.keyInsights,
+        recommendation: t.recommendation,
+        preparedBy: t.reportPreparedBy,
+      },
+      report,
+    }),
+  });
 
-  if (!reportWindow) {
-    URL.revokeObjectURL(url);
-    return;
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || 'Failed to generate PDF');
   }
 
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+
+  anchor.href = url;
+  anchor.download = `${sanitizeFilename(report.title || 'quotewise-analysis-report')}.pdf`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }
 
 function escapeHtml(value: string) {

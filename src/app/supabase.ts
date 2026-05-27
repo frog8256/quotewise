@@ -10,7 +10,7 @@ const defaultSupabaseConfig: SupabaseConfig = {
   supabaseKey: 'sb_publishable_i9G_HBi9GxnfQhzBZeBe9w_oQOIvThK',
 };
 
-const supabaseConfig: SupabaseConfig = {
+export const supabaseConfig: SupabaseConfig = {
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL || defaultSupabaseConfig.supabaseUrl,
   supabaseKey: import.meta.env.VITE_SUPABASE_ANON_KEY || defaultSupabaseConfig.supabaseKey,
 };
