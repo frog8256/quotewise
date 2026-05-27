@@ -2790,6 +2790,7 @@ function ResultsSection({
 }) {
   const [isReportPreviewOpen, setIsReportPreviewOpen] = useState(false);
   const [isExcelLanguageOpen, setIsExcelLanguageOpen] = useState(false);
+  const [isPdfLanguageOpen, setIsPdfLanguageOpen] = useState(false);
   const vendors =
     analysis?.vendors?.length
       ? analysis.vendors
@@ -2833,13 +2834,18 @@ function ResultsSection({
     setIsReportPreviewOpen(true);
   };
 
-  const handlePrintReport = () => {
+  const handleRequestPdfDownload = () => {
     if (!currentUser?.emailVerified) {
       onRequireVerifiedEmail();
       return;
     }
 
-    downloadAnalysisReport(t, language, files, analysis);
+    setIsPdfLanguageOpen(true);
+  };
+
+  const handleDownloadPdf = (pdfLanguage: Language) => {
+    downloadAnalysisReport(copy[pdfLanguage], pdfLanguage, files, analysis);
+    setIsPdfLanguageOpen(false);
   };
 
   const handleRequestExcelDownload = () => {
@@ -3040,13 +3046,22 @@ function ResultsSection({
         files={files}
         analysis={analysis}
         onClose={() => setIsReportPreviewOpen(false)}
-        onDownload={handlePrintReport}
+        onDownload={handleRequestPdfDownload}
         onDownloadExcel={handleRequestExcelDownload}
       />
     ) : null}
-    {isExcelLanguageOpen ? (
-      <ExcelLanguageModal
+    {isPdfLanguageOpen ? (
+      <ExportLanguageModal
         currentLanguage={language}
+        exportType="pdf"
+        onClose={() => setIsPdfLanguageOpen(false)}
+        onSelect={handleDownloadPdf}
+      />
+    ) : null}
+    {isExcelLanguageOpen ? (
+      <ExportLanguageModal
+        currentLanguage={language}
+        exportType="excel"
         onClose={() => setIsExcelLanguageOpen(false)}
         onSelect={handleDownloadExcel}
       />
@@ -3208,23 +3223,29 @@ function ReportPreviewMetric({ label, value }: { label: string; value: string })
   );
 }
 
-function ExcelLanguageModal({
+function ExportLanguageModal({
   currentLanguage,
+  exportType,
   onClose,
   onSelect,
 }: {
   currentLanguage: Language;
+  exportType: 'pdf' | 'excel';
   onClose: () => void;
   onSelect: (language: Language) => void;
 }) {
+  const title = exportType === 'pdf' ? getPdfLanguageTitle(currentLanguage) : getExcelLanguageTitle(currentLanguage);
+  const body = exportType === 'pdf' ? getPdfLanguageCopy(currentLanguage) : getExcelLanguageCopy(currentLanguage);
+  const eyebrow = exportType === 'pdf' ? 'PDF' : 'Excel';
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#10243f]/45 px-4 py-8 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-3xl border border-[#dbe5f1] bg-white p-6 shadow-[0_28px_70px_rgba(15,35,65,0.28)]">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#2563eb]">Excel</p>
-            <h2 className="mt-2 text-2xl font-semibold text-[#10243f]">{getExcelLanguageTitle(currentLanguage)}</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">{getExcelLanguageCopy(currentLanguage)}</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#2563eb]">{eyebrow}</p>
+            <h2 className="mt-2 text-2xl font-semibold text-[#10243f]">{title}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">{body}</p>
           </div>
           <button
             type="button"
@@ -3526,6 +3547,20 @@ function getExcelLanguageCopy(language: Language) {
   return 'Choose the language for the Summary and Key insights export.';
 }
 
+function getPdfLanguageTitle(language: Language) {
+  if (language === 'ko') return 'PDF 언어 선택';
+  if (language === 'ja') return 'PDFの言語を選択';
+  if (language === 'zh') return '选择 PDF 语言';
+  return 'Choose PDF language';
+}
+
+function getPdfLanguageCopy(language: Language) {
+  if (language === 'ko') return '상세 분석 리포트를 어떤 언어로 저장할지 선택하세요.';
+  if (language === 'ja') return '詳細分析レポートを保存する言語を選択してください。';
+  if (language === 'zh') return '请选择详细分析报告的保存语言。';
+  return 'Choose the language for the detailed analysis report.';
+}
+
 function getCurrentLanguageText(language: Language) {
   if (language === 'ko') return '현재';
   if (language === 'ja') return '現在';
@@ -3617,12 +3652,6 @@ function downloadSummaryExcel(t: (typeof copy)[Language], language: Language, fi
 }
 
 function downloadAnalysisReport(t: (typeof copy)[Language], language: Language, files: File[], analysis: QuoteAnalysis | null) {
-  const reportWindow = window.open('', '_blank', 'noopener,noreferrer,width=960,height=1200');
-
-  if (!reportWindow) {
-    return;
-  }
-
   const report = getReportModel(t, language, files, analysis);
   const vendorHeaders = report.vendors.map((vendor) => `<th>${escapeHtml(vendor)}</th>`).join('');
   const emptyRows = `
@@ -3658,8 +3687,7 @@ function downloadAnalysisReport(t: (typeof copy)[Language], language: Language, 
   const insights = (report.insights.length ? report.insights : [getNoDataText(language)])
     .map((item) => `<li>${escapeHtml(item)}</li>`)
     .join('');
-
-  reportWindow.document.write(`
+  const reportHtml = `
     <!doctype html>
     <html>
       <head>
@@ -3831,14 +3859,25 @@ function downloadAnalysisReport(t: (typeof copy)[Language], language: Language, 
         </main>
         <script>
           window.addEventListener('load', () => {
-            window.focus();
-            window.print();
+            setTimeout(() => {
+              window.focus();
+              window.print();
+            }, 250);
           });
         </script>
       </body>
     </html>
-  `);
-  reportWindow.document.close();
+  `;
+  const blob = new Blob([reportHtml], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const reportWindow = window.open(url, '_blank', 'width=960,height=1200');
+
+  if (!reportWindow) {
+    URL.revokeObjectURL(url);
+    return;
+  }
+
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 function escapeHtml(value: string) {
