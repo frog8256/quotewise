@@ -2998,29 +2998,7 @@ function ResultsSection({
             <p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
               {getReportPageLabel(language, 6)}
             </p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <Button
-                type="button"
-                variant="contained"
-                fullWidth
-                onClick={handleOpenReportPreview}
-                startIcon={<Download className="h-4 w-4" />}
-                sx={{
-                  py: 1.25,
-                  backgroundColor: '#1e3a5f',
-                  borderRadius: '10px',
-                  cursor: 'pointer',
-                  fontWeight: 700,
-                  textTransform: 'none',
-                  '&.Mui-disabled': {
-                    backgroundColor: '#cbd5e1',
-                    color: '#ffffff',
-                  },
-                  '&:hover': { backgroundColor: '#2563eb' },
-                }}
-              >
-                {t.reportDownload}
-              </Button>
+            <div className="mt-3 grid gap-3">
               <Button
                 type="button"
                 variant="contained"
@@ -3196,25 +3174,7 @@ function ReportPreviewModal({
 
         <div className="flex flex-col gap-3 border-t border-[#e7edf5] px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
           <p className="text-sm text-slate-500">{getReportPreviewNotice(language)}</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Button
-              type="button"
-              variant="contained"
-              onClick={onDownload}
-              startIcon={<Download className="h-4 w-4" />}
-              sx={{
-                backgroundColor: '#1e3a5f',
-                borderRadius: '10px',
-                cursor: 'pointer',
-                fontWeight: 700,
-                px: 2.5,
-                py: 1.15,
-                textTransform: 'none',
-                '&:hover': { backgroundColor: '#2563eb' },
-              }}
-            >
-              {t.reportDownload}
-            </Button>
+          <div className="grid gap-3">
             <Button
               type="button"
               variant="contained"
