@@ -12,12 +12,17 @@ const fontUrl =
 const pageWidth = 842;
 const pageHeight = 595;
 const margin = 42;
-const navy = rgb(0.06, 0.14, 0.25);
-const slate = rgb(0.32, 0.39, 0.49);
-const blue = rgb(0.15, 0.39, 0.92);
-const green = rgb(0.02, 0.47, 0.34);
+const navy = rgb(0.05, 0.13, 0.24);
+const ink = rgb(0.09, 0.17, 0.29);
+const slate = rgb(0.34, 0.42, 0.53);
+const lightSlate = rgb(0.58, 0.65, 0.75);
+const blue = rgb(0.12, 0.32, 0.78);
+const green = rgb(0.02, 0.48, 0.34);
+const rose = rgb(0.88, 0.08, 0.28);
 const border = rgb(0.84, 0.89, 0.95);
 const softBlue = rgb(0.95, 0.98, 1);
+const softGreen = rgb(0.93, 0.98, 0.96);
+const white = rgb(1, 1, 1);
 
 type PdfCell = {
   vendor: string;
@@ -45,18 +50,20 @@ type PdfReport = {
   insights: string[];
 };
 
+type PdfLabels = {
+  summary: string;
+  totalSavings: string;
+  recommendedVendor: string;
+  coverageGaps: string;
+  item: string;
+  delta: string;
+  keyInsights: string;
+  recommendation: string;
+  preparedBy: string;
+};
+
 type PdfPayload = {
-  labels: {
-    summary: string;
-    totalSavings: string;
-    recommendedVendor: string;
-    coverageGaps: string;
-    item: string;
-    delta: string;
-    keyInsights: string;
-    recommendation: string;
-    preparedBy: string;
-  };
+  labels: PdfLabels;
   report: PdfReport;
 };
 
@@ -114,194 +121,310 @@ async function buildPdf({ labels, report }: PdfPayload) {
   });
   const font = await pdf.embedFont(fontBytes, { subset: true });
 
-  let page = pdf.addPage([pageWidth, pageHeight]);
-  let y = pageHeight - margin;
   let pageNumber = 1;
+  let page = pdf.addPage([pageWidth, pageHeight]);
 
-  const newPage = () => {
+  drawExecutivePage(page, font, labels, report, pageNumber);
+  drawFooter(page, font, pageNumber);
+
+  pageNumber += 1;
+  page = pdf.addPage([pageWidth, pageHeight]);
+  drawHeader(page, font, 'DECISION SUPPORT DETAIL');
+  let y = pageHeight - margin - 34;
+
+  y = drawDecisionBasis(page, font, labels, report, y);
+  y -= 22;
+  y = drawDetailedTable(pdf, page, font, labels, report, y, () => {
     drawFooter(page, font, pageNumber);
     pageNumber += 1;
     page = pdf.addPage([pageWidth, pageHeight]);
-    y = pageHeight - margin;
-    drawHeader(page, font);
-  };
-
-  const ensureSpace = (height: number) => {
-    if (y - height < margin + 28) {
-      newPage();
-    }
-  };
-
-  drawHeader(page, font);
-  page.drawText('QUOTEWISE ANALYSIS REPORT', {
-    x: margin,
-    y,
-    size: 9,
-    font,
-    color: blue,
-    characterSpacing: 1.6,
-  });
-  y -= 28;
-
-  y = drawWrappedText(page, report.title, margin, y, pageWidth - margin * 2, 25, 32, font, navy);
-  y -= 8;
-  y = drawWrappedText(page, report.summary, margin, y, pageWidth - margin * 2, 11, 17, font, slate);
-  y -= 18;
-
-  drawInfoBox(page, font, labels.preparedBy, report.quotePair, margin, y - 42, pageWidth - margin * 2, 42);
-  y -= 66;
-
-  const metricWidth = (pageWidth - margin * 2 - 24) / 3;
-  drawMetric(page, font, labels.totalSavings, report.estimatedSavings, margin, y - 72, metricWidth, 72);
-  drawMetric(page, font, labels.recommendedVendor, report.recommendedQuote, margin + metricWidth + 12, y - 72, metricWidth, 72);
-  drawMetric(page, font, labels.coverageGaps, report.coverageGaps, margin + (metricWidth + 12) * 2, y - 72, metricWidth, 72);
-  y -= 102;
-
-  ensureSpace(56);
-  page.drawText(labels.summary, { x: margin, y, size: 16, font, color: navy });
-  y -= 24;
-  y = drawComparisonTable(page, font, report, labels, y, ensureSpace, () => {
-    newPage();
+    drawHeader(page, font, 'LINE ITEM APPENDIX');
     return page;
   });
-
-  ensureSpace(80);
-  y -= 18;
-  page.drawText(labels.keyInsights, { x: margin, y, size: 16, font, color: navy });
-  y -= 18;
-
-  const insights = report.insights.length ? report.insights : ['No data'];
-  for (const insight of insights) {
-    const lines = wrapText(insight, pageWidth - margin * 2 - 24, 10, font);
-    ensureSpace(lines.length * 15 + 18);
-    page.drawText('•', { x: margin + 4, y, size: 10, font, color: green });
-    y = drawLines(page, lines, margin + 24, y, 10, 15, font, slate);
-    y -= 8;
-  }
-
-  ensureSpace(72);
-  y -= 6;
-  drawRecommendation(page, font, labels.recommendation, report.recommendation, margin, y - 62, pageWidth - margin * 2, 62);
 
   drawFooter(page, font, pageNumber);
   return pdf.save();
 }
 
-function drawHeader(page: any, font: any) {
-  page.drawText('QuoteWise', {
+function drawExecutivePage(page: any, font: any, labels: PdfLabels, report: PdfReport, pageNumber: number) {
+  drawHeader(page, font, 'QUOTEWISE ANALYSIS REPORT');
+
+  page.drawText('DECISION REPORT', {
     x: margin,
-    y: pageHeight - 24,
+    y: pageHeight - margin - 20,
+    size: 9,
+    font,
+    color: blue,
+    characterSpacing: 1.8,
+  });
+
+  drawWrappedText(page, report.title, margin, pageHeight - margin - 54, 470, 26, 31, font, navy, 3);
+  drawWrappedText(page, report.summary, margin, pageHeight - margin - 154, 470, 11, 17, font, slate, 5);
+
+  drawScopeCard(page, font, labels, report, margin, 286, 470, 78);
+  drawDecisionPanel(page, font, labels, report, 545, 350, 255, 150);
+
+  const metricY = 236;
+  drawMetricCard(page, font, labels.totalSavings, report.estimatedSavings, margin, metricY, 150, 72, green);
+  drawMetricCard(page, font, labels.recommendedVendor, report.recommendedQuote, margin + 162, metricY, 150, 72, blue);
+  drawMetricCard(page, font, labels.coverageGaps, report.coverageGaps, margin + 324, metricY, 146, 72, rose);
+
+  drawInsightRail(page, font, labels, report, 545, 104, 255, 220);
+
+  page.drawText(labels.recommendation, {
+    x: margin,
+    y: 184,
     size: 12,
     font,
     color: navy,
   });
+  drawWrappedText(page, report.recommendation, margin, 162, 470, 14, 19, font, ink, 5);
+
+  page.drawText('Generated by QuoteWise', {
+    x: margin,
+    y: 62,
+    size: 8,
+    font,
+    color: lightSlate,
+  });
+  page.drawText(`Page ${pageNumber}`, {
+    x: pageWidth - margin - 42,
+    y: 62,
+    size: 8,
+    font,
+    color: lightSlate,
+  });
+}
+
+function drawHeader(page: any, font: any, eyebrow: string) {
+  page.drawText('QuoteWise', {
+    x: margin,
+    y: pageHeight - 25,
+    size: 13,
+    font,
+    color: navy,
+  });
+  page.drawText(eyebrow, {
+    x: pageWidth - margin - 210,
+    y: pageHeight - 23,
+    size: 8,
+    font,
+    color: lightSlate,
+    characterSpacing: 1.2,
+  });
   page.drawLine({
-    start: { x: margin, y: pageHeight - 34 },
-    end: { x: pageWidth - margin, y: pageHeight - 34 },
-    thickness: 0.5,
+    start: { x: margin, y: pageHeight - 36 },
+    end: { x: pageWidth - margin, y: pageHeight - 36 },
+    thickness: 0.7,
     color: border,
   });
 }
 
 function drawFooter(page: any, font: any, pageNumber: number) {
   page.drawLine({
-    start: { x: margin, y: 30 },
-    end: { x: pageWidth - margin, y: 30 },
-    thickness: 0.5,
+    start: { x: margin, y: 34 },
+    end: { x: pageWidth - margin, y: 34 },
+    thickness: 0.6,
     color: border,
   });
-  page.drawText(`QuoteWise - Page ${pageNumber}`, {
+  page.drawText('QuoteWise Analysis Report', {
     x: margin,
-    y: 16,
+    y: 18,
+    size: 8,
+    font,
+    color: lightSlate,
+  });
+  page.drawText(`Page ${pageNumber}`, {
+    x: pageWidth - margin - 42,
+    y: 18,
+    size: 8,
+    font,
+    color: lightSlate,
+  });
+}
+
+function drawScopeCard(page: any, font: any, labels: PdfLabels, report: PdfReport, x: number, y: number, width: number, height: number) {
+  page.drawRectangle({ x, y, width, height, color: softBlue, borderColor: border, borderWidth: 1 });
+  page.drawText(labels.preparedBy, { x: x + 16, y: y + height - 20, size: 8, font, color: slate });
+  drawWrappedText(page, report.quotePair, x + 16, y + height - 42, width - 32, 11, 15, font, navy, 2);
+  const vendorText = report.vendors.length ? report.vendors.join(' / ') : '-';
+  drawWrappedText(page, vendorText, x + 16, y + 18, width - 32, 8, 11, font, lightSlate, 1);
+}
+
+function drawDecisionPanel(page: any, font: any, labels: PdfLabels, report: PdfReport, x: number, y: number, width: number, height: number) {
+  page.drawRectangle({ x, y, width, height, color: navy });
+  page.drawText(labels.recommendation.toUpperCase(), {
+    x: x + 18,
+    y: y + height - 26,
+    size: 8,
+    font,
+    color: rgb(0.75, 0.84, 1),
+    characterSpacing: 1.3,
+  });
+  drawWrappedText(page, report.recommendedQuote || '-', x + 18, y + height - 62, width - 36, 24, 28, font, white, 2);
+  drawWrappedText(page, report.recommendation, x + 18, y + 54, width - 36, 10, 14, font, rgb(0.82, 0.88, 0.96), 4);
+}
+
+function drawMetricCard(page: any, font: any, label: string, value: string, x: number, y: number, width: number, height: number, accent: any) {
+  page.drawRectangle({ x, y, width, height, color: white, borderColor: border, borderWidth: 1 });
+  page.drawRectangle({ x, y: y + height - 4, width, height: 4, color: accent });
+  page.drawText(label.toUpperCase(), { x: x + 12, y: y + height - 22, size: 7, font, color: slate, characterSpacing: 0.8 });
+  drawWrappedText(page, value || '-', x + 12, y + height - 48, width - 24, 18, 21, font, navy, 2);
+}
+
+function drawInsightRail(page: any, font: any, labels: PdfLabels, report: PdfReport, x: number, y: number, width: number, height: number) {
+  page.drawRectangle({ x, y, width, height, color: white, borderColor: border, borderWidth: 1 });
+  page.drawText(labels.keyInsights.toUpperCase(), {
+    x: x + 16,
+    y: y + height - 24,
     size: 8,
     font,
     color: slate,
+    characterSpacing: 1.1,
+  });
+
+  const insights = report.insights.length ? report.insights.slice(0, 4) : ['No data'];
+  let currentY = y + height - 48;
+  insights.forEach((insight, index) => {
+    page.drawCircle({ x: x + 20, y: currentY + 3, size: 4, color: green });
+    currentY = drawWrappedText(page, insight, x + 34, currentY + 8, width - 52, 9, 13, font, ink, 3);
+    if (index < insights.length - 1) {
+      currentY -= 9;
+    }
   });
 }
 
-function drawInfoBox(page: any, font: any, label: string, value: string, x: number, y: number, width: number, height: number) {
-  page.drawRectangle({ x, y, width, height, borderColor: border, borderWidth: 1, color: softBlue });
-  page.drawText(label, { x: x + 14, y: y + height - 16, size: 8, font, color: slate });
-  drawWrappedText(page, value, x + 14, y + height - 28, width - 28, 10, 13, font, navy);
+function drawDecisionBasis(page: any, font: any, labels: PdfLabels, report: PdfReport, y: number) {
+  page.drawText(labels.keyInsights, { x: margin, y, size: 16, font, color: navy });
+  y -= 24;
+
+  const insights = report.insights.length ? report.insights.slice(0, 6) : ['No data'];
+  const gap = 12;
+  const cardWidth = (pageWidth - margin * 2 - gap) / 2;
+  let leftY = y;
+  let rightY = y;
+
+  insights.forEach((insight, index) => {
+    const isLeft = index % 2 === 0;
+    const x = isLeft ? margin : margin + cardWidth + gap;
+    const targetY = isLeft ? leftY : rightY;
+    const lines = wrapText(insight, cardWidth - 38, 9, font).slice(0, 4);
+    const height = Math.max(48, lines.length * 13 + 22);
+
+    page.drawRectangle({ x, y: targetY - height, width: cardWidth, height, color: softGreen, borderColor: border, borderWidth: 1 });
+    page.drawCircle({ x: x + 16, y: targetY - 19, size: 4, color: green });
+    drawLines(page, lines, x + 28, targetY - 14, 9, 13, font, ink);
+
+    if (isLeft) {
+      leftY = targetY - height - 10;
+    } else {
+      rightY = targetY - height - 10;
+    }
+  });
+
+  return Math.min(leftY, rightY);
 }
 
-function drawMetric(page: any, font: any, label: string, value: string, x: number, y: number, width: number, height: number) {
-  page.drawRectangle({ x, y, width, height, borderColor: border, borderWidth: 1, color: rgb(1, 1, 1) });
-  page.drawText(label.toUpperCase(), { x: x + 14, y: y + height - 20, size: 8, font, color: slate });
-  drawWrappedText(page, value, x + 14, y + height - 42, width - 28, 18, 22, font, navy);
-}
-
-function drawRecommendation(page: any, font: any, label: string, value: string, x: number, y: number, width: number, height: number) {
-  page.drawRectangle({ x, y, width, height, borderColor: border, borderWidth: 1, color: softBlue });
-  page.drawText(label.toUpperCase(), { x: x + 16, y: y + height - 20, size: 8, font, color: slate, characterSpacing: 1.2 });
-  drawWrappedText(page, value, x + 16, y + height - 40, width - 32, 13, 17, font, navy);
-}
-
-function drawComparisonTable(
+function drawDetailedTable(
+  pdf: any,
   page: any,
   font: any,
+  labels: PdfLabels,
   report: PdfReport,
-  labels: PdfPayload['labels'],
   startY: number,
-  ensureSpace: (height: number) => void,
-  newPage: () => any,
+  nextPage: () => any,
 ) {
   let currentPage = page;
   let y = startY;
   const tableWidth = pageWidth - margin * 2;
   const vendorCount = Math.max(report.vendors.length, 1);
-  const itemWidth = Math.max(180, tableWidth * 0.28);
-  const deltaWidth = 90;
+  const itemWidth = Math.max(190, tableWidth * 0.28);
+  const deltaWidth = 108;
   const vendorWidth = (tableWidth - itemWidth - deltaWidth) / vendorCount;
 
-  const drawTableHeader = () => {
-    currentPage.drawRectangle({ x: margin, y: y - 24, width: tableWidth, height: 24, color: softBlue, borderColor: border, borderWidth: 1 });
-    currentPage.drawText(labels.item, { x: margin + 8, y: y - 16, size: 8, font, color: slate });
-    report.vendors.forEach((vendor, index) => {
-      currentPage.drawText(truncate(vendor, 18), { x: margin + itemWidth + vendorWidth * index + 8, y: y - 16, size: 8, font, color: slate });
-    });
-    currentPage.drawText(labels.delta, { x: margin + itemWidth + vendorWidth * vendorCount + 8, y: y - 16, size: 8, font, color: slate });
+  const drawSectionTitle = () => {
+    currentPage.drawText(labels.summary, { x: margin, y, size: 16, font, color: navy });
     y -= 24;
   };
 
-  drawTableHeader();
+  const drawHeaderRow = () => {
+    currentPage.drawRectangle({ x: margin, y: y - 25, width: tableWidth, height: 25, color: softBlue, borderColor: border, borderWidth: 1 });
+    currentPage.drawText(labels.item, { x: margin + 8, y: y - 17, size: 8, font, color: slate });
+    report.vendors.forEach((vendor, index) => {
+      currentPage.drawText(truncate(vendor, 18), { x: margin + itemWidth + vendorWidth * index + 8, y: y - 17, size: 8, font, color: slate });
+    });
+    currentPage.drawText(labels.delta, { x: margin + itemWidth + vendorWidth * vendorCount + 8, y: y - 17, size: 8, font, color: slate });
+    y -= 25;
+  };
 
-  for (const row of report.rows) {
-    const itemLines = wrapText(row.itemLabel, itemWidth - 16, 10, font);
-    const insightLines = wrapText(row.insight, itemWidth - 16, 8, font).slice(0, 3);
-    const cellLineCounts = row.cells.map((cell) => wrapText(cell.value, vendorWidth - 16, 9, font).length + (cell.rawTerm ? 1 : 0));
-    const deltaLines = wrapText(row.delta, deltaWidth - 16, 9, font);
-    const rowHeight = Math.max(44, (Math.max(itemLines.length + insightLines.length, ...cellLineCounts, deltaLines.length) + 1) * 13);
+  drawSectionTitle();
+  drawHeaderRow();
 
-    if (y - rowHeight < margin + 40) {
-      currentPage = newPage();
-      y = pageHeight - margin - 18;
-      drawTableHeader();
+  const rows = report.rows.length ? report.rows : [{ itemLabel: 'No data', insight: '', delta: '-', cells: report.vendors.map((vendor) => ({ vendor, value: '-' })) }];
+
+  for (const row of rows) {
+    const itemLines = wrapText(row.itemLabel, itemWidth - 16, 9.5, font);
+    const insightLines = row.insight ? wrapText(row.insight, itemWidth - 16, 7.5, font).slice(0, 3) : [];
+    const cellLineCounts = row.cells.map((cell) => wrapText(cell.value, vendorWidth - 16, 8.5, font).length + (cell.rawTerm ? 1 : 0));
+    const deltaLines = wrapText(row.delta, deltaWidth - 16, 8.5, font);
+    const rowHeight = Math.max(44, (Math.max(itemLines.length + insightLines.length, ...cellLineCounts, deltaLines.length) + 1) * 12);
+
+    if (y - rowHeight < margin + 38) {
+      currentPage = nextPage();
+      y = pageHeight - margin - 34;
+      drawSectionTitle();
+      drawHeaderRow();
     }
 
-    currentPage.drawRectangle({ x: margin, y: y - rowHeight, width: tableWidth, height: rowHeight, borderColor: border, borderWidth: 0.7, color: rgb(1, 1, 1) });
-    let textY = y - 14;
-    textY = drawLines(currentPage, itemLines, margin + 8, textY, 10, 13, font, navy);
-    drawLines(currentPage, insightLines, margin + 8, textY - 3, 8, 11, font, slate);
+    currentPage.drawRectangle({ x: margin, y: y - rowHeight, width: tableWidth, height: rowHeight, color: white, borderColor: border, borderWidth: 0.7 });
+
+    let itemY = y - 14;
+    itemY = drawLines(currentPage, itemLines, margin + 8, itemY, 9.5, 12, font, navy);
+    if (insightLines.length) {
+      drawLines(currentPage, insightLines, margin + 8, itemY - 2, 7.5, 10, font, slate);
+    }
 
     row.cells.forEach((cell, index) => {
       let cellY = y - 14;
-      const lines = wrapText(cell.value, vendorWidth - 16, 9, font);
-      cellY = drawLines(currentPage, lines, margin + itemWidth + vendorWidth * index + 8, cellY, 9, 12, font, navy);
+      const lines = wrapText(cell.value, vendorWidth - 16, 8.5, font);
+      cellY = drawLines(currentPage, lines, margin + itemWidth + vendorWidth * index + 8, cellY, 8.5, 11, font, ink);
       if (cell.rawTerm) {
-        drawWrappedText(currentPage, cell.rawTerm, margin + itemWidth + vendorWidth * index + 8, cellY - 2, vendorWidth - 16, 7, 10, font, slate);
+        drawWrappedText(currentPage, cell.rawTerm, margin + itemWidth + vendorWidth * index + 8, cellY - 1, vendorWidth - 16, 7, 9, font, lightSlate, 1);
       }
     });
 
-    drawLines(currentPage, deltaLines, margin + itemWidth + vendorWidth * vendorCount + 8, y - 14, 9, 12, font, navy);
+    drawLines(currentPage, deltaLines, margin + itemWidth + vendorWidth * vendorCount + 8, y - 14, 8.5, 11, font, deltaColor(row.delta));
     y -= rowHeight;
   }
 
   return y;
 }
 
-function drawWrappedText(page: any, text: string, x: number, y: number, maxWidth: number, size: number, lineHeight: number, font: any, color: any) {
-  const lines = wrapText(text || '-', maxWidth, size, font);
+function deltaColor(delta: string) {
+  if (delta.includes('+')) return rose;
+  if (delta.includes('-')) return green;
+  return navy;
+}
+
+function drawWrappedText(
+  page: any,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  size: number,
+  lineHeight: number,
+  font: any,
+  color: any,
+  maxLines?: number,
+) {
+  let lines = wrapText(text || '-', maxWidth, size, font);
+
+  if (maxLines && lines.length > maxLines) {
+    lines = lines.slice(0, maxLines);
+    lines[lines.length - 1] = truncate(lines[lines.length - 1], Math.max(4, lines[lines.length - 1].length - 3));
+  }
+
   return drawLines(page, lines, x, y, size, lineHeight, font, color);
 }
 
@@ -374,5 +497,5 @@ function splitLongWord(word: string, maxWidth: number, size: number, font: any) 
 }
 
 function truncate(value: string, maxLength: number) {
-  return value.length > maxLength ? `${value.slice(0, maxLength - 1)}…` : value;
+  return value.length > maxLength ? `${value.slice(0, Math.max(0, maxLength - 3))}...` : value;
 }
