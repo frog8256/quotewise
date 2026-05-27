@@ -3088,7 +3088,6 @@ function ReportPreviewModal({
   onDownloadExcel: () => void;
 }) {
   const report = getReportModel(t, language, files, analysis);
-  const lockedPages = Array.from({ length: 5 }, (_, index) => index + 2);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#10243f]/45 px-4 py-8 backdrop-blur-sm">
@@ -3112,7 +3111,7 @@ function ReportPreviewModal({
         <div className="max-h-[calc(92vh-190px)] overflow-y-auto bg-[#f4f8fd] px-5 py-5">
           <div className="mx-auto max-w-3xl rounded-2xl border border-[#dbe5f1] bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between gap-4 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-              <span>{getReportPageText(language, 1, 6)}</span>
+              <span>{getFullReportPreviewText(language)}</span>
               <span>{report.quotePair}</span>
             </div>
             <h3 className="mt-5 text-3xl font-semibold leading-tight text-[#10243f]">{report.title}</h3>
@@ -3127,14 +3126,52 @@ function ReportPreviewModal({
             <div className="mt-6">
               <h4 className="text-base font-semibold text-[#10243f]">{t.summary}</h4>
               {report.rows.length ? (
-                <div className="mt-3 overflow-hidden rounded-xl border border-[#e7edf5]">
-                  {report.rows.slice(0, 4).map((row) => (
-                    <div key={row.itemLabel} className="grid grid-cols-[1fr_auto] gap-4 border-b border-[#eef3f8] px-4 py-3 last:border-b-0">
-                      <div>
-                        <p className="text-sm font-semibold text-[#10243f]">{row.itemLabel}</p>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">{row.insight}</p>
-                      </div>
-                      <p className="text-right text-sm font-bold text-[#1e3a5f]">{row.delta}</p>
+                <div className="mt-3 overflow-x-auto rounded-xl border border-[#e7edf5]">
+                  <table className="min-w-full border-collapse text-sm">
+                    <thead className="bg-[#f8fbff] text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+                      <tr>
+                        <th className="min-w-48 px-4 py-3 text-left">{t.previewHeaders[0]}</th>
+                        {report.vendors.map((vendor) => (
+                          <th key={vendor} className="min-w-32 px-4 py-3 text-right">
+                            {vendor}
+                          </th>
+                        ))}
+                        <th className="min-w-28 px-4 py-3 text-right">{t.delta}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.rows.map((row) => (
+                        <tr key={row.itemLabel} className="border-t border-[#eef3f8]">
+                          <td className="px-4 py-4 align-top">
+                            <p className="font-semibold text-[#10243f]">{row.itemLabel}</p>
+                            <p className="mt-1 text-xs leading-5 text-slate-500">{row.insight}</p>
+                          </td>
+                          {row.cells.map((cell) => (
+                            <td key={`${row.itemLabel}-${cell.vendor}`} className="px-4 py-4 text-right align-top font-semibold text-slate-700">
+                              <p>{cell.value}</p>
+                              {cell.rawTerm ? <p className="mt-1 text-xs font-medium text-slate-400">{cell.rawTerm}</p> : null}
+                            </td>
+                          ))}
+                          <td className="px-4 py-4 text-right align-top font-bold text-[#1e3a5f]">{row.delta}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="mt-3 rounded-xl border border-[#e7edf5] px-4 py-5 text-center text-sm font-semibold text-slate-500">
+                  {getNoDataText(language)}
+                </p>
+              )}
+            </div>
+
+            <div className="mt-8">
+              <h4 className="text-base font-semibold text-[#10243f]">{t.keyInsights}</h4>
+              {report.insights.length ? (
+                <div className="mt-3 space-y-3">
+                  {report.insights.map((insight) => (
+                    <div key={insight} className="rounded-xl border border-[#e7edf5] bg-[#f8fbff] px-4 py-3 text-sm leading-6 text-slate-600">
+                      {insight}
                     </div>
                   ))}
                 </div>
@@ -3144,27 +3181,11 @@ function ReportPreviewModal({
                 </p>
               )}
             </div>
-          </div>
 
-          <div className="mx-auto mt-4 grid max-w-3xl gap-4 md:grid-cols-2">
-            {lockedPages.map((page) => (
-              <div key={page} className="relative min-h-52 overflow-hidden rounded-2xl border border-[#dbe5f1] bg-white p-5 shadow-sm">
-                <div className="pointer-events-none select-none blur-[3px]">
-                  <div className="h-3 w-28 rounded bg-slate-200" />
-                  <div className="mt-5 h-4 w-4/5 rounded bg-slate-200" />
-                  <div className="mt-3 h-4 w-2/3 rounded bg-slate-200" />
-                  <div className="mt-6 space-y-3">
-                    <div className="h-3 rounded bg-slate-100" />
-                    <div className="h-3 rounded bg-slate-100" />
-                    <div className="h-3 w-3/4 rounded bg-slate-100" />
-                  </div>
-                </div>
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/58 text-center">
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">{getReportPageText(language, page, 6)}</p>
-                  <p className="mt-2 max-w-56 text-sm font-semibold text-[#10243f]">{getLockedReportText(language)}</p>
-                </div>
-              </div>
-            ))}
+            <div className="mt-8 rounded-xl border border-[#b8c9df] bg-[#f8fbff] p-5">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">{t.recommendation}</p>
+              <p className="mt-2 text-lg font-bold text-[#1e3a5f]">{report.recommendation}</p>
+            </div>
           </div>
         </div>
 
@@ -3505,18 +3526,11 @@ function getReportPageLabel(language: Language, pages: number) {
   return `${pages}-page report`;
 }
 
-function getReportPageText(language: Language, page: number, pages: number) {
-  if (language === 'ko') return `${page} / ${pages} 페이지`;
-  if (language === 'ja') return `${page} / ${pages} ページ`;
-  if (language === 'zh') return `第 ${page} / ${pages} 页`;
-  return `Page ${page} / ${pages}`;
-}
-
-function getLockedReportText(language: Language) {
-  if (language === 'ko') return 'PDF를 다운로드하면 전체 리포트를 볼 수 있습니다.';
-  if (language === 'ja') return 'PDFをダウンロードすると全文を確認できます。';
-  if (language === 'zh') return '下载 PDF 后可查看完整报告。';
-  return 'Download the PDF to view the full report.';
+function getFullReportPreviewText(language: Language) {
+  if (language === 'ko') return '전체 리포트 미리보기';
+  if (language === 'ja') return 'レポート全体のプレビュー';
+  if (language === 'zh') return '完整报告预览';
+  return 'Full report preview';
 }
 
 function getReportPreviewNotice(language: Language) {
