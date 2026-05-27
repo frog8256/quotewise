@@ -2789,6 +2789,7 @@ function ResultsSection({
   onNewComparison: () => void;
 }) {
   const [isReportPreviewOpen, setIsReportPreviewOpen] = useState(false);
+  const [isExcelLanguageOpen, setIsExcelLanguageOpen] = useState(false);
   const vendors =
     analysis?.vendors?.length
       ? analysis.vendors
@@ -2841,13 +2842,18 @@ function ResultsSection({
     downloadAnalysisReport(t, language, files, analysis);
   };
 
-  const handleDownloadExcel = () => {
+  const handleRequestExcelDownload = () => {
     if (!currentUser?.emailVerified) {
       onRequireVerifiedEmail();
       return;
     }
 
-    downloadSummaryExcel(t, language, files, analysis);
+    setIsExcelLanguageOpen(true);
+  };
+
+  const handleDownloadExcel = (excelLanguage: Language) => {
+    downloadSummaryExcel(copy[excelLanguage], excelLanguage, files, analysis);
+    setIsExcelLanguageOpen(false);
   };
 
   return (
@@ -3008,7 +3014,7 @@ function ResultsSection({
                 type="button"
                 variant="contained"
                 fullWidth
-                onClick={handleDownloadExcel}
+                onClick={handleRequestExcelDownload}
                 startIcon={<Download className="h-4 w-4" />}
                 sx={{
                   py: 1.25,
@@ -3035,7 +3041,14 @@ function ResultsSection({
         analysis={analysis}
         onClose={() => setIsReportPreviewOpen(false)}
         onDownload={handlePrintReport}
-        onDownloadExcel={handleDownloadExcel}
+        onDownloadExcel={handleRequestExcelDownload}
+      />
+    ) : null}
+    {isExcelLanguageOpen ? (
+      <ExcelLanguageModal
+        currentLanguage={language}
+        onClose={() => setIsExcelLanguageOpen(false)}
+        onSelect={handleDownloadExcel}
       />
     ) : null}
     </>
@@ -3191,6 +3204,59 @@ function ReportPreviewMetric({ label, value }: { label: string; value: string })
     <div className="rounded-xl border border-[#e7edf5] bg-[#f8fbff] p-4">
       <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
       <p className="mt-2 text-xl font-semibold text-[#10243f]">{value}</p>
+    </div>
+  );
+}
+
+function ExcelLanguageModal({
+  currentLanguage,
+  onClose,
+  onSelect,
+}: {
+  currentLanguage: Language;
+  onClose: () => void;
+  onSelect: (language: Language) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#10243f]/45 px-4 py-8 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-3xl border border-[#dbe5f1] bg-white p-6 shadow-[0_28px_70px_rgba(15,35,65,0.28)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#2563eb]">Excel</p>
+            <h2 className="mt-2 text-2xl font-semibold text-[#10243f]">{getExcelLanguageTitle(currentLanguage)}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">{getExcelLanguageCopy(currentLanguage)}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#dbe5f1] text-slate-500 transition hover:border-[#2563eb] hover:text-[#1e3a5f]"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-6 grid gap-3">
+          {orderedLanguages.map((option) => (
+            <button
+              key={option.code}
+              type="button"
+              onClick={() => onSelect(option.code)}
+              className="flex items-center justify-between rounded-xl border border-[#dbe5f1] bg-white px-4 py-3 text-left transition hover:border-[#2563eb] hover:bg-[#f8fbff]"
+            >
+              <span>
+                <span className="block text-sm font-bold text-[#10243f]">{getLanguageNativeLabel(option.code)}</span>
+                <span className="mt-0.5 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{option.short}</span>
+              </span>
+              {option.code === currentLanguage ? (
+                <span className="rounded-full bg-[#eaf2ff] px-3 py-1 text-xs font-bold text-[#2563eb]">
+                  {getCurrentLanguageText(currentLanguage)}
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -3444,6 +3510,34 @@ function getExcelDownloadText(language: Language) {
   if (language === 'ja') return 'Excelをダウンロード';
   if (language === 'zh') return '下载 Excel';
   return 'Download Excel';
+}
+
+function getExcelLanguageTitle(language: Language) {
+  if (language === 'ko') return 'Excel 언어 선택';
+  if (language === 'ja') return 'Excelの言語を選択';
+  if (language === 'zh') return '选择 Excel 语言';
+  return 'Choose Excel language';
+}
+
+function getExcelLanguageCopy(language: Language) {
+  if (language === 'ko') return 'Summary와 Key insights를 어떤 언어로 다운로드할지 선택하세요.';
+  if (language === 'ja') return 'Summary と Key insights をダウンロードする言語を選択してください。';
+  if (language === 'zh') return '请选择 Summary 和 Key insights 的下载语言。';
+  return 'Choose the language for the Summary and Key insights export.';
+}
+
+function getCurrentLanguageText(language: Language) {
+  if (language === 'ko') return '현재';
+  if (language === 'ja') return '現在';
+  if (language === 'zh') return '当前';
+  return 'Current';
+}
+
+function getLanguageNativeLabel(language: Language) {
+  if (language === 'ko') return '한국어';
+  if (language === 'ja') return '日本語';
+  if (language === 'zh') return '中文';
+  return 'English';
 }
 
 function downloadSummaryExcel(t: (typeof copy)[Language], language: Language, files: File[], analysis: QuoteAnalysis | null) {
